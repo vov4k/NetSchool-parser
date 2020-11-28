@@ -20,9 +20,9 @@ class MySQL:
                                           cursorclass=pymysql.cursors.DictCursor,
                                           autocommit=True)
 
-    def query(self, sql):
+    def query(self, sql, args=None):
         with self.connection.cursor() as cursor:
-            cursor.execute(sql)
+            cursor.execute(sql, args)
             result = cursor.fetchall()
 
         return result
