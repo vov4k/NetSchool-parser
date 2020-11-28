@@ -1,5 +1,6 @@
 # Configs
 /netschool_pwd.txt
+/MySQL/config.json
 
 # Cache
 __pycache__
