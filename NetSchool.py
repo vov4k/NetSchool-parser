@@ -2,7 +2,6 @@ import requests
 from time import sleep
 from bs4 import BeautifulSoup
 from datetime import timedelta
-# from json import loads, dumps
 import datetime
 import re
 # from urllib.parse import urlparse
@@ -16,7 +15,32 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 disable_warnings(InsecureRequestWarning)
 
 
-class Netschool_User:
+def contentLength(params):
+    return 2 * len(params) - 1 + sum([len(key) + len(value) for key, value in params.items()])
+
+
+def getCookies(cookies):
+    answer = {}
+    while cookies:
+        key_i = cookies.find('=')
+        key = cookies[:key_i]
+        value = cookies[key_i + 1: cookies.find(';')]
+        answer[key] = value
+        cookies = cookies[cookies.find('path'):]
+        cookie_end_i = cookies.find(',') + 1
+        if not cookie_end_i:
+            break
+        while cookie_end_i < len(cookies) and cookies[cookie_end_i] == ' ':
+            cookie_end_i += 1
+        cookies = cookies[cookie_end_i:]
+    return answer
+
+
+def cookiesToStr(cookies):
+    return ';'.join([key + '=' + value for key, value in cookies.items()])
+
+
+class NetschoolUser:
     def __init__(self, login, password):
 
         self.main_params = {
@@ -48,15 +72,9 @@ class Netschool_User:
 
         self.user_login = login
         self.user_password = password
-        self.wait_time = 1
+        self.sleep_time = 1
 
-    def content_length(self, params):
-        return 2 * len(params) - 1 + sum([len(key) + len(value) for key, value in params.items()])
-
-    def cookies_to_str(self, cookies):
-        return ';'.join([key + '=' + value for key, value in cookies.items()])
-
-    def get_headers(self, referer=None, params=None, cookies=None):
+    def getHeaders(self, referer=None, params=None, cookies=None):
         result = self.main_headers.copy()
 
         if referer is not None:
@@ -68,32 +86,16 @@ class Netschool_User:
                 new_params[key] = '' if value is None else value.strip()
 
             result['Content-Type'] = 'application/x-www-form-urlencoded'
-            result['Content-Length'] = str(self.content_length(new_params))
+            result['Content-Length'] = str(contentLength(new_params))
 
             params = new_params
 
         if cookies is not None:
             if type(cookies) == dict:
-                cookies = self.cookies_to_str(cookies)
+                cookies = cookiesToStr(cookies)
             result['Cookie'] = cookies
 
         return result, params
-
-    def get_cookies(self, cookies):
-        answer = {}
-        while cookies:
-            key_i = cookies.find('=')
-            key = cookies[:key_i]
-            value = cookies[key_i + 1: cookies.find(';')]
-            answer[key] = value
-            cookies = cookies[cookies.find('path'):]
-            cookie_end_i = cookies.find(',') + 1
-            if not cookie_end_i:
-                break
-            while cookie_end_i < len(cookies) and cookies[cookie_end_i] == ' ':
-                cookie_end_i += 1
-            cookies = cookies[cookie_end_i:]
-        return answer
 
     # def get_menuitem_tabitem(referer, to):
     #   referer = referer[referer.find('asp') + 4:]
@@ -114,13 +116,13 @@ class Netschool_User:
 
     def login(self):
         # netschool.school.ioffe.ru
-        headers, params = self.get_headers()
+        headers, params = self.getHeaders()
         postlogin_params = self.main_params
 
         r = requests.get('http://netschool.school.ioffe.ru', headers=headers)
         self.last_page = 'http://netschool.school.ioffe.ru'
 
-        self.cookies = self.get_cookies(r.headers['Set-Cookie'])
+        self.cookies = getCookies(r.headers['Set-Cookie'])
         r = r.text
         soup = BeautifulSoup(r, 'lxml')
         postlogin_params['VER'] = soup.find('div', class_='info').find('input', {'name': 'VER'}).get('value').strip()
@@ -133,10 +135,10 @@ class Netschool_User:
         pw2 = md5((str(salt) + md5(self.user_password.encode()).hexdigest()).encode()).hexdigest()
         postlogin_params['PW2'] = pw2
         postlogin_params['PW'] = pw2[:len(self.user_password)]
-        sleep(self.wait_time)
+        sleep(self.sleep_time)
 
         # postlogin
-        headers, params = self.get_headers(self.last_page, postlogin_params, self.cookies)
+        headers, params = self.getHeaders(self.last_page, postlogin_params, self.cookies)
 
         r = requests.post('http://netschool.school.ioffe.ru/asp/postlogin.asp', data=params, headers=headers)
         self.last_page = 'http://netschool.school.ioffe.ru/asp/postlogin.asp'
@@ -147,7 +149,7 @@ class Netschool_User:
             return False
 
         if 'Set-Cookie' in r.headers:
-            self.cookies.update(self.get_cookies(r.headers['set-Cookie']))
+            self.cookies.update(getCookies(r.headers['set-Cookie']))
         soup = BeautifulSoup(r.text, 'lxml')
         form = soup.find('form')
         inputs = form.find_all('input')
@@ -157,20 +159,20 @@ class Netschool_User:
             securitywarning_params[i.get('name').strip()] = i.get('value').strip()
         if 'SecurityWarning' in r.text:
             securitywarning_params['ATLIST'] = securitywarning_params['ATLIST'].replace('\x01', '%01')
-            sleep(self.wait_time)
+            sleep(self.sleep_time)
 
             # SecurityWarning
-            headers, params = self.get_headers(self.last_page, securitywarning_params, self.cookies)
+            headers, params = self.getHeaders(self.last_page, securitywarning_params, self.cookies)
 
             r = requests.post('http://netschool.school.ioffe.ru/asp/SecurityWarning.asp', data=securitywarning_params, headers=headers)
             self.last_page = 'http://netschool.school.ioffe.ru/asp/SecurityWarning.asp'
 
             if 'Set-Cookie' in r.headers:
-                self.cookies.update(self.get_cookies(r.headers['set-Cookie']))
+                self.cookies.update(getCookies(r.headers['set-Cookie']))
             soup = BeautifulSoup(r.text, 'lxml')
             self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
             self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
-            sleep(self.wait_time)
+            sleep(self.sleep_time)
         else:
             self.at = securitywarning_params['AT']
             self.ver = securitywarning_params['VER']
@@ -178,12 +180,12 @@ class Netschool_User:
 
     def logout(self):
         params = {'AT': self.at, 'VER': self.ver}
-        headers, params = self.get_headers(self.last_page, params, self.cookies)
+        headers, params = self.getHeaders(self.last_page, params, self.cookies)
         requests.post('http://netschool.school.ioffe.ru/asp/logout.asp', data=params, headers=headers)
-        sleep(self.wait_time)
+        sleep(self.sleep_time)
         del self
 
-    def securitywarning(self, r):
+    def handleSecurityWarning(self, r):
         soup = BeautifulSoup(r.text, 'lxml')
         soup = soup.find('form', {'action': '/asp/SecurityWarning.asp'})
         if soup is not None:
@@ -192,8 +194,8 @@ class Netschool_User:
             atlist = soup.find('input', {'name': 'ATLIST'}).get('value').strip()
             warntype = soup.find('input', {'name': 'WarnType'}).get('value').strip()
             params = {'WarnType': warntype, 'ATLIST': atlist, 'AT': self.at, 'VER': self.ver}
-            headers, params = self.get_headers(self.last_page, params, self.cookies)
-            sleep(self.wait_time)
+            headers, params = self.getHeaders(self.last_page, params, self.cookies)
+            sleep(self.sleep_time)
 
             r = requests.post('http://netschool.school.ioffe.ru/asp/SecurityWarning.asp', data=params, headers=headers)
             self.last_page = 'http://netschool.school.ioffe.ru/asp/SecurityWarning.asp'
@@ -204,24 +206,24 @@ class Netschool_User:
             tabitem = soup.find('input', {'name': 'TabItem'}).get('value').strip()
             menuitem = soup.find('input', {'name': 'MenuItem'}).get('value').strip()
             logintype = soup.find('input', {'name': 'LoginType'}).get('value').strip()
-            sleep(self.wait_time)
+            sleep(self.sleep_time)
             params = {'LoginType': logintype, 'AT': self.at, 'VER': self.ver, 'TabItem': tabitem, 'MenuItem': menuitem}
-            headers, param = self.get_headers(self.last_page, params, self.cookies)
+            headers, param = self.getHeaders(self.last_page, params, self.cookies)
 
             r = requests.post(self.last_page, data=params, headers=headers)
         return r
 
-    def get_announcements(self):
+    def getAnnouncements(self):
         params = {'AT': self.at, 'VER': self.ver}
-        headers, params = self.get_headers(self.last_page, params, self.cookies)
+        headers, params = self.getHeaders(self.last_page, params, self.cookies)
 
         r = requests.post('http://netschool.school.ioffe.ru/asp/Announce/ViewAnnouncements.asp', data=params, headers=headers)
         self.last_page = 'http://netschool.school.ioffe.ru/asp/Announce/ViewAnnouncements.asp'
 
-        r = self.securitywarning(r)
+        r = self.handleSecurityWarning(r)
 
         if 'Set-Cookie' in r.headers:
-            self.cookies.update(self.get_cookies(r.headers['set-Cookie']))
+            self.cookies.update(getCookies(r.headers['set-Cookie']))
 
         soup = BeautifulSoup(r.text, 'lxml')
         self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
@@ -275,28 +277,28 @@ class Netschool_User:
         #         file_name = urlparse(answer_links[link][0]).path
         #         file_name = file_name[file_name.rfind('/') + 1:]
         #         with open('modules/tmp/' + file_name, 'wb') as file:
-        #             file.write(self.get_file(answer_links[link][0], answer_links[link][1]))
+        #             file.write(self.getFile(answer_links[link][0], answer_links[link][1]))
         #         answer_links[link] = [1, file_name, answer_links[link][0]]
         #     else:
         #         answer_links[link] = [0, answer_links[link]]
-        sleep(self.wait_time)
+        sleep(self.sleep_time)
 
         return answer
 
-    def get_file(self, url, attachment_id):
+    def getFile(self, url, attachment_id):
         params = {
             'AT': self.at,
             'VER': self.ver,
             'attachmentId': str(attachment_id)
         }
-        headers, params = self.get_headers(self.last_page, params, self.cookies)
+        headers, params = self.getHeaders(self.last_page, params, self.cookies)
         r = requests.post(url, data=params, headers=headers)
         self.last_page = url
         if 'Set-Cookie' in r.headers:
-            self.cookies.update(self.get_cookies(r.headers['set-Cookie']))
+            self.cookies.update(getCookies(r.headers['set-Cookie']))
         return r.content
 
-    def get_daily_timetable(self, date=None):
+    def getDailyTimetable(self, date=None):
         if date is None:
             date = datetime.datetime.today().date()
         date = date.strftime('%d.%m.%y')
@@ -308,14 +310,14 @@ class Netschool_User:
             # 'TabItem': '30',
             'DATE': date
         }
-        headers, params = self.get_headers(self.last_page, params, self.cookies)
+        headers, params = self.getHeaders(self.last_page, params, self.cookies)
 
         r = requests.post('http://netschool.school.ioffe.ru/asp/Calendar/DayViewS.asp', data=params, headers=headers)
         self.last_page = 'http://netschool.school.ioffe.ru/asp/Calendar/DayViewS.asp'
 
-        r = self.securitywarning(r)
+        r = self.handleSecurityWarning(r)
         if 'Set-Cookie' in r.headers:
-            self.cookies.update(self.get_cookies(r.headers['set-Cookie']))
+            self.cookies.update(getCookies(r.headers['set-Cookie']))
         soup = BeautifulSoup(r.text, 'lxml')
         self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
         self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
@@ -346,10 +348,10 @@ class Netschool_User:
                     answer.append([time, name, 'lesson'])
         else:
             answer = soup.find('div', 'alert-info').text.strip()
-        sleep(self.wait_time)
+        sleep(self.sleep_time)
         return answer
 
-    def get_weekly_timetable(self, date=None):
+    def getWeeklyTimetable(self, date=None):
         if date is None:
             date = datetime.datetime.today().date()
         date = (date - timedelta(date.weekday())).strftime('%d.%m.%y')
@@ -362,14 +364,14 @@ class Netschool_User:
             'Relay': '-1',
             'DATE': date
         }
-        headers, params = self.get_headers(self.last_page, params, self.cookies)
+        headers, params = self.getHeaders(self.last_page, params, self.cookies)
 
         r = requests.post('http://netschool.school.ioffe.ru/asp/Calendar/WeekViewTimeS.asp', data=params, headers=headers)
         self.last_page = 'http://netschool.school.ioffe.ru/asp/Calendar/WeekViewTimeS.asp'
 
-        r = self.securitywarning(r)
+        r = self.handleSecurityWarning(r)
         if 'Set-Cookie' in r.headers:
-            self.cookies.update(self.get_cookies(r.headers['set-Cookie']))
+            self.cookies.update(getCookies(r.headers['set-Cookie']))
         soup = BeautifulSoup(r.text, 'lxml')
         self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
         self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
@@ -386,10 +388,10 @@ class Netschool_User:
 
         while len(answer) < 7:
             answer.append([None])
-        sleep(self.wait_time)
+        sleep(self.sleep_time)
         return answer
 
-    # def get_event(self, event_id, event_type):
+    # def getEvent(self, event_id, event_type):
     #     event_type = {
     #         'event': 1,
     #         '???': 2,  # TODO
@@ -407,14 +409,14 @@ class Netschool_User:
     #         # 'MenuItem': '0',
     #         # 'TabItem': '30',
     #     }
-    #     headers, params = self.get_headers(self.last_page, params, self.cookies)
+    #     headers, params = self.getHeaders(self.last_page, params, self.cookies)
 
     #     r = requests.post('http://netschool.school.ioffe.ru/asp/SetupSchool/Calendar/EditEvent.asp', data=params, headers=headers)
     #     self.last_page = 'http://netschool.school.ioffe.ru/asp/SetupSchool/Calendar/EditEvent.asp'
 
-    #     r = self.securitywarning(r)
+    #     r = self.handleSecurityWarning(r)
     #     if 'Set-Cookie' in r.headers:
-    #         self.cookies.update(self.get_cookies(r.headers['set-Cookie']))
+    #         self.cookies.update(getCookies(r.headers['set-Cookie']))
     #     soup = BeautifulSoup(r.text, 'lxml')
     #     self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
     #     self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
@@ -429,35 +431,31 @@ class Netschool_User:
     #         if key and value:
     #             answer[key] = value
 
-    #     sleep(self.wait_time)
+    #     sleep(self.sleep_time)
     #     return answer
 
 
 def main(user_login, user_password):  # For development
     print("Starting...")
 
-    nts = Netschool_User(user_login, user_password)
+    nts = NetschoolUser(user_login, user_password)
     nts.login()
-    print('login success')
-    sleep(2)
+    print('Login success')
 
     try:
-        # print('get_announcements():')
-        # print(nts.get_announcements())
-        # sleep(2)
-        # print('get_daily_timetable:')
-        # print(nts.get_daily_timetable())
-        # print(nts.get_daily_timetable(datetime.date(year=2019, month=6, day=3)))  # nothing
-        # print(nts.get_daily_timetable(datetime.date(year=2019, month=5, day=1)))  # holidays
-        # sleep(2)
-        print('get_weekly_timetable():')
-        print(nts.get_weekly_timetable())
+        # print('getAnnouncements():')
+        # print(nts.getAnnouncements())
+        # print('getDailyTimetable:')
+        # print(nts.getDailyTimetable())
+        # print(nts.getDailyTimetable(datetime.date(year=2019, month=6, day=3)))  # nothing
+        # print(nts.getDailyTimetable(datetime.date(year=2019, month=5, day=1)))  # holidays
+        print('getWeeklyTimetable():')
+        print(nts.getWeeklyTimetable())
     except Exception:
         print(format_exc())
 
-    sleep(2)
     nts.logout()
-    print('logout success')
+    print('Logout success')
 
 
 if __name__ == "__main__":
