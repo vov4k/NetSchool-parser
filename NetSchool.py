@@ -7,7 +7,7 @@ import datetime
 import re
 # from urllib.parse import urlparse
 
-from password_hash import get_pw
+from hashlib import md5
 
 from traceback import format_exc  # for debugging
 
@@ -130,7 +130,7 @@ class Netschool_User:
         i = r.find('salt')
         salt = r[i + 4: i + 20]
         salt = salt[salt.find('\'') + 1: salt.rfind('\'')].strip()
-        pw2 = get_pw(salt, self.user_password)
+        pw2 = md5((str(salt) + md5(self.user_password.encode()).hexdigest()).encode()).hexdigest()
         postlogin_params['PW2'] = pw2
         postlogin_params['PW'] = pw2[:len(self.user_password)]
         sleep(self.wait_time)
