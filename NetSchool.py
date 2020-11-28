@@ -43,7 +43,7 @@ def cookiesToStr(cookies):
 class NetschoolUser:
     def __init__(self, login, password):
 
-        self.main_params = {
+        self.login_params = {
             "ECardID": "",
             "CID": "2",
             "PID": "-1",
@@ -74,28 +74,8 @@ class NetschoolUser:
         self.user_password = password
         self.sleep_time = 1
 
-    def getHeaders(self, referer=None, params=None, cookies=None):
-        result = self.main_headers.copy()
-
-        if referer is not None:
-            result['Referer'] = referer
-
-        if params is not None:
-            new_params = self.main_params.copy()
-            for key, value in params.items():
-                new_params[key] = '' if value is None else value.strip()
-
-            result['Content-Type'] = 'application/x-www-form-urlencoded'
-            result['Content-Length'] = str(contentLength(new_params))
-
-            params = new_params
-
-        if cookies is not None:
-            if type(cookies) == dict:
-                cookies = cookiesToStr(cookies)
-            result['Cookie'] = cookies
-
-        return result, params
+        self.session = requests.Session()
+        self.session.headers = self.main_headers
 
     # def get_menuitem_tabitem(referer, to):
     #   referer = referer[referer.find('asp') + 4:]
@@ -116,101 +96,91 @@ class NetschoolUser:
 
     def login(self):
         # netschool.school.ioffe.ru
-        headers, params = self.getHeaders()
-        postlogin_params = self.main_params
 
-        r = requests.get('http://netschool.school.ioffe.ru', headers=headers)
-        self.last_page = 'http://netschool.school.ioffe.ru'
+        r = self.session.get('http://netschool.school.ioffe.ru').text
+        soup = BeautifulSoup(r, 'lxml').find('div', class_='info')
 
-        self.cookies = getCookies(r.headers['Set-Cookie'])
-        r = r.text
-        soup = BeautifulSoup(r, 'lxml')
-        postlogin_params['VER'] = soup.find('div', class_='info').find('input', {'name': 'VER'}).get('value').strip()
-        postlogin_params['LoginType'] = soup.find('div', class_='info').find('input', {'name': 'LoginType'}).get('value').strip()
-        lt = soup.find('div', class_='info').find('input', {'name': 'LT'}).get('value').strip()
-        postlogin_params['LT'] = lt
-        i = r.find('salt')
-        salt = r[i + 4: i + 20]
+        self.login_params['VER'] = soup.find('input', {'name': 'VER'}).get('value').strip()
+        self.login_params['LoginType'] = soup.find('input', {'name': 'LoginType'}).get('value').strip()
+        self.login_params['LT'] = soup.find('input', {'name': 'LT'}).get('value').strip()
+
+        salt = r[r.find('salt') + 4: r.find('salt') + 20]
         salt = salt[salt.find('\'') + 1: salt.rfind('\'')].strip()
-        pw2 = md5((str(salt) + md5(self.user_password.encode()).hexdigest()).encode()).hexdigest()
-        postlogin_params['PW2'] = pw2
-        postlogin_params['PW'] = pw2[:len(self.user_password)]
+
+        self.login_params['PW2'] = md5((str(salt) + md5(self.user_password.encode()).hexdigest()).encode()).hexdigest()
+
+        self.login_params['PW'] = self.login_params['PW2'][:len(self.user_password)]
+
         sleep(self.sleep_time)
 
         # postlogin
-        headers, params = self.getHeaders(self.last_page, postlogin_params, self.cookies)
+        r = self.session.post('http://netschool.school.ioffe.ru/asp/postlogin.asp', data=self.login_params)
 
-        r = requests.post('http://netschool.school.ioffe.ru/asp/postlogin.asp', data=params, headers=headers)
-        self.last_page = 'http://netschool.school.ioffe.ru/asp/postlogin.asp'
-
-        # with open('netschool.html', 'w', encoding='UTF8') as file:
-        #     file.write(r.text)
         if r.url.startswith('http://netschool.school.ioffe.ru/asp/error.asp'):
             return False
 
-        if 'Set-Cookie' in r.headers:
-            self.cookies.update(getCookies(r.headers['set-Cookie']))
         soup = BeautifulSoup(r.text, 'lxml')
-        form = soup.find('form')
-        inputs = form.find_all('input')
-        inputs = form.find_all('input')
-        securitywarning_params = {}
-        for i in inputs:
-            securitywarning_params[i.get('name').strip()] = i.get('value').strip()
-        if 'SecurityWarning' in r.text:
-            securitywarning_params['ATLIST'] = securitywarning_params['ATLIST'].replace('\x01', '%01')
+
+        if soup.find('form', {'action': '/asp/SecurityWarning.asp'}) is not None:
+            params = {
+                'ATLIST': soup.find('input', {'name': 'ATLIST'}).get('value').strip().replace('\x01', '%01'),
+                'AT': soup.find('input', {'name': 'AT'}).get('value').strip(),
+                'VER': soup.find('input', {'name': 'VER'}).get('value').strip(),
+                'WarnType': 1
+            }
+
             sleep(self.sleep_time)
 
             # SecurityWarning
-            headers, params = self.getHeaders(self.last_page, securitywarning_params, self.cookies)
+            r = self.session.post('http://netschool.school.ioffe.ru/asp/SecurityWarning.asp', data=params)
 
-            r = requests.post('http://netschool.school.ioffe.ru/asp/SecurityWarning.asp', data=securitywarning_params, headers=headers)
-            self.last_page = 'http://netschool.school.ioffe.ru/asp/SecurityWarning.asp'
-
-            if 'Set-Cookie' in r.headers:
-                self.cookies.update(getCookies(r.headers['set-Cookie']))
             soup = BeautifulSoup(r.text, 'lxml')
-            self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
-            self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
-            sleep(self.sleep_time)
-        else:
-            self.at = securitywarning_params['AT']
-            self.ver = securitywarning_params['VER']
+
+        self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
+        self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
+
+        sleep(self.sleep_time)
+
         return True
 
     def logout(self):
-        params = {'AT': self.at, 'VER': self.ver}
-        headers, params = self.getHeaders(self.last_page, params, self.cookies)
-        requests.post('http://netschool.school.ioffe.ru/asp/logout.asp', data=params, headers=headers)
+        self.session.post('http://netschool.school.ioffe.ru/asp/logout.asp', data={'AT': self.at, 'VER': self.ver})
         sleep(self.sleep_time)
         del self
 
     def handleSecurityWarning(self, r):
-        soup = BeautifulSoup(r.text, 'lxml')
-        soup = soup.find('form', {'action': '/asp/SecurityWarning.asp'})
+        soup = BeautifulSoup(r.text, 'lxml').find('form', {'action': '/asp/SecurityWarning.asp'})
+
         if soup is not None:
             self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
             self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
-            atlist = soup.find('input', {'name': 'ATLIST'}).get('value').strip()
-            warntype = soup.find('input', {'name': 'WarnType'}).get('value').strip()
-            params = {'WarnType': warntype, 'ATLIST': atlist, 'AT': self.at, 'VER': self.ver}
-            headers, params = self.getHeaders(self.last_page, params, self.cookies)
+
+            params = {
+                'WarnType': soup.find('input', {'name': 'ATLIST'}).get('value').strip(),
+                'ATLIST': soup.find('input', {'name': 'WarnType'}).get('value').strip(),
+                'AT': self.at,
+                'VER': self.ver
+            }
+
             sleep(self.sleep_time)
 
-            r = requests.post('http://netschool.school.ioffe.ru/asp/SecurityWarning.asp', data=params, headers=headers)
-            self.last_page = 'http://netschool.school.ioffe.ru/asp/SecurityWarning.asp'
+            r = self.session.post('http://netschool.school.ioffe.ru/asp/SecurityWarning.asp', data=params)
 
             soup = BeautifulSoup(r.text, 'lxml')
             self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
             self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
-            tabitem = soup.find('input', {'name': 'TabItem'}).get('value').strip()
-            menuitem = soup.find('input', {'name': 'MenuItem'}).get('value').strip()
-            logintype = soup.find('input', {'name': 'LoginType'}).get('value').strip()
-            sleep(self.sleep_time)
-            params = {'LoginType': logintype, 'AT': self.at, 'VER': self.ver, 'TabItem': tabitem, 'MenuItem': menuitem}
-            headers, param = self.getHeaders(self.last_page, params, self.cookies)
 
-            r = requests.post(self.last_page, data=params, headers=headers)
+            params = {
+                'LoginType': soup.find('input', {'name': 'LoginType'}).get('value').strip(),
+                'AT': self.at,
+                'VER': self.ver,
+                'TabItem': soup.find('input', {'name': 'TabItem'}).get('value').strip(),
+                'MenuItem': soup.find('input', {'name': 'MenuItem'}).get('value').strip()
+            }
+
+            sleep(self.sleep_time)
+
+            r = self.session.post(self.last_page, data=params)
         return r
 
     def getAnnouncements(self):
@@ -439,18 +409,20 @@ def main(user_login, user_password):  # For development
     print("Starting...")
 
     nts = NetschoolUser(user_login, user_password)
-    nts.login()
+    if not nts.login():
+        exit("Login failed")
     print('Login success')
 
     try:
+        pass
         # print('getAnnouncements():')
         # print(nts.getAnnouncements())
         # print('getDailyTimetable:')
         # print(nts.getDailyTimetable())
         # print(nts.getDailyTimetable(datetime.date(year=2019, month=6, day=3)))  # nothing
         # print(nts.getDailyTimetable(datetime.date(year=2019, month=5, day=1)))  # holidays
-        print('getWeeklyTimetable():')
-        print(nts.getWeeklyTimetable())
+        # print('getWeeklyTimetable():')
+        # print(nts.getWeeklyTimetable())
     except Exception:
         print(format_exc())
 
