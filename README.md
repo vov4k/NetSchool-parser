@@ -6,6 +6,18 @@
 {password}
 ```
 
+Чтобы настроить MySQL:
+Создайте файл `/MySQL/config.json` со следующим содержанием:
+```
+{
+	"host": "{host}",
+	"user": "{username}",
+	"password": "{password}",
+	"database": "{database}"
+}
+```
+Или скопируйте из секретных источников...
+
 ### Requirements
 
 Python modules:
