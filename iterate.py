@@ -1,6 +1,8 @@
 from MySQL.MySQL import MySQL
 from datetime import datetime
 
+from NetSchool import NetschoolUser
+
 
 def main():
     mysql = MySQL("MySQL/config.json")
@@ -9,9 +11,11 @@ def main():
 
     for person in people:
 
-        print("Running for person | {} {}".format(person["first_name"], person["last_name"]))
+        print("Running for person | {} {}...".format(person["first_name"], person["last_name"]))
 
-        # TODO
+        nts = NetschoolUser(person["username"], person["password"])
+
+        del nts
 
         cur_daytime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 

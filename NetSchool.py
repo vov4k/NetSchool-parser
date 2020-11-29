@@ -59,15 +59,15 @@ class NetschoolUser:
             "UN": login
         }
         self.main_headers = {
-            "Host": "netschool.school.ioffe.ru",
+            # "Host": "netschool.school.ioffe.ru",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:64.0) Gecko/20100101 Firefox/64.0",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3",
-            "Accept-Encoding": "gzip, deflate",
+            # "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            # "Accept-Language": "ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3",
+            # "Accept-Encoding": "gzip, deflate",
             "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1",
-            "Pragma": "no-cache",
-            "Cache-Control": "no-cache"
+            # "Upgrade-Insecure-Requests": "1",
+            # "Pragma": "no-cache",
+            # "Cache-Control": "no-cache"
         }
 
         self.user_login = login
