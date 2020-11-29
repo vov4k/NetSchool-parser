@@ -58,24 +58,14 @@ class NetschoolUser:
             "SID": "2589",
             "UN": login
         }
-        self.main_headers = {
-            # "Host": "netschool.school.ioffe.ru",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:64.0) Gecko/20100101 Firefox/64.0",
-            # "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            # "Accept-Language": "ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3",
-            # "Accept-Encoding": "gzip, deflate",
-            "Connection": "keep-alive",
-            # "Upgrade-Insecure-Requests": "1",
-            # "Pragma": "no-cache",
-            # "Cache-Control": "no-cache"
-        }
 
         self.user_login = login
         self.user_password = password
-        self.sleep_time = 1
+        self.sleep_time = 0.5
+
+        self.at, self.ver = "", ""
 
         self.session = requests.Session()
-        self.session.headers = self.main_headers
 
     # def get_menuitem_tabitem(referer, to):
     #   referer = referer[referer.find('asp') + 4:]
@@ -271,53 +261,86 @@ class NetschoolUser:
     def getDailyTimetable(self, date=None):
         if date is None:
             date = datetime.datetime.today().date()
-        date = date.strftime('%d.%m.%y')
+
+        if datetime.datetime.today().date().month >= 9:
+            school_year = datetime.datetime.today().date().year
+        else:
+            school_year = datetime.datetime.today().date().year - 1
+
         params = {
             'LoginType': '0',
             'AT': self.at,
             'VER': self.ver,
             # 'MenuItem': '0',
             # 'TabItem': '30',
-            'DATE': date
+            'DATE': date.strftime('%d.%m.%y')
         }
-        headers, params = self.getHeaders(self.last_page, params, self.cookies)
-
-        r = requests.post('http://netschool.school.ioffe.ru/asp/Calendar/DayViewS.asp', data=params, headers=headers)
-        self.last_page = 'http://netschool.school.ioffe.ru/asp/Calendar/DayViewS.asp'
+        r = self.session.post('http://netschool.school.ioffe.ru/asp/Calendar/DayViewS.asp', data=params)
 
         r = self.handleSecurityWarning(r)
-        if 'Set-Cookie' in r.headers:
-            self.cookies.update(getCookies(r.headers['set-Cookie']))
+
         soup = BeautifulSoup(r.text, 'lxml')
         self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
         self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
-        # parser
-        answer = []
+
         soup = soup.find('div', class_='content')
+
         if soup.find('div', 'alert-info') is None:
-            trs = soup.find('table').find_all('tr')[1:]
-            for tr in trs:
+            answer = []
+            for tr in soup.find('table').find_all('tr')[1:]:
                 tr = tr.find_all('td')
-                time = tr[0].text.strip().replace('\xa0', ' ')
+                start_daytime, end_daytime = map(str.strip, tr[0].text.strip().replace('\xa0', ' ').split('-'))
                 name = tr[1].text.strip().replace('\xa0', ' ')
 
-                if tr[1].get('class'):
+                try:
+                    start_daytime = datetime.datetime.combine(date, datetime.datetime.strptime(start_daytime, "%H:%M").time())
+                    end_daytime = datetime.datetime.combine(date, datetime.datetime.strptime(end_daytime, "%H:%M").time())
+                except ValueError:
+                    start_date, start_time = start_daytime.split(' ')
+                    end_date, end_time = end_daytime.split(' ')
+
+                    start_day, start_month = map(int, start_date.split('.'))
+                    if start_month >= 9:
+                        start_date = datetime.date(year=school_year, month=start_month, day=start_day)
+                    else:
+                        start_date = datetime.date(year=school_year + 1, month=start_month, day=start_day)
+
+                    end_day, end_month = map(int, end_date.split('.'))
+                    if end_month >= 9:
+                        end_date = datetime.date(year=school_year, month=end_month, day=end_day)
+                    else:
+                        end_date = datetime.date(year=school_year + 1, month=end_month, day=end_day)
+
+                    start_daytime = datetime.datetime.combine(
+                        start_date,
+                        datetime.datetime.strptime(start_time, "%H:%M").time()
+                    )
+                    end_daytime = datetime.datetime.combine(
+                        end_date,
+                        datetime.datetime.strptime(end_time, "%H:%M").time()
+                    )
+
+                if tr[1].get('class') is not None:
                     try:
                         event_id = tr[1].find('a').get('href')
                         event_id = event_id[:event_id.rfind(')')]
                         event_id = int(event_id[event_id.rfind(',') + 1:])
                     except Exception:
                         event_id = None
-                if tr[1].get('class') is not None and 'vacation-day' in tr[1].get('class'):
-                    answer.append([time, name, 'vacation', event_id])
-                elif tr[1].get('class') is not None and 'school-event' in tr[1].get('class'):
-                    answer.append([time, name, 'event', event_id])
+
+                    if 'vacation-day' in tr[1].get('class'):
+                        answer.append(['vacation', (start_daytime, end_daytime), name, event_id])
+
+                    elif 'school-event' in tr[1].get('class'):
+                        answer.append(['event', (start_daytime, end_daytime), name, event_id])
+
                 else:
                     if name.startswith('Урок:'):
                         name = name[5:].strip()
-                    answer.append([time, name, 'lesson'])
+                    answer.append(['lesson', (start_daytime, end_daytime), name])
         else:
-            answer = soup.find('div', 'alert-info').text.strip()
+            answer = None
+
         sleep(self.sleep_time)
         return answer
 
@@ -409,6 +432,7 @@ def main(user_login, user_password):  # For development
     print("Starting...")
 
     nts = NetschoolUser(user_login, user_password)
+
     if not nts.login():
         exit("Login failed")
     print('Login success')
@@ -419,15 +443,16 @@ def main(user_login, user_password):  # For development
         # print(nts.getAnnouncements())
         # print('getDailyTimetable:')
         # print(nts.getDailyTimetable())
-        # print(nts.getDailyTimetable(datetime.date(year=2019, month=6, day=3)))  # nothing
-        # print(nts.getDailyTimetable(datetime.date(year=2019, month=5, day=1)))  # holidays
+        # print(nts.getDailyTimetable(datetime.date(year=2021, month=1, day=1)))
+        # print(nts.getDailyTimetable(datetime.date(year=2020, month=11, day=25)))
+        # print(nts.getDailyTimetable(datetime.date(year=2020, month=6, day=1)))  # holidays
         # print('getWeeklyTimetable():')
         # print(nts.getWeeklyTimetable())
     except Exception:
         print(format_exc())
 
     nts.logout()
-    print('Logout success')
+    print('Logout')
 
 
 if __name__ == "__main__":
