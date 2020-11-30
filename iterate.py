@@ -22,13 +22,13 @@ def main():
 
         if nts.login():
             print("Login success")
-        #     for author, title, date, text in nts.getAnnouncements():
-        #         sql += "INSERT INTO `announcements` (`author`, `title`, `date`, `text`) VALUES ({}, {}, {}, {});\n".format(author, title, date, text)
+            # for author, title, date, text in nts.getAnnouncements():
+            #     sql += "INSERT INTO `announcements` (`author`, `title`, `date`, `text`) VALUES ({}, {}, {}, {});\n".format(author, title, date, text)
         else:
             print("Login failed")
 
         nts.logout()
-        print("Logout")
+        print("Logout\n")
 
         del nts
 

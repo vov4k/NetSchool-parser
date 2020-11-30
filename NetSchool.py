@@ -268,11 +268,9 @@ class NetschoolUser:
             school_year = datetime.datetime.today().date().year - 1
 
         params = {
-            'LoginType': '0',
+            # 'LoginType': '0',
             'AT': self.at,
             'VER': self.ver,
-            # 'MenuItem': '0',
-            # 'TabItem': '30',
             'DATE': date.strftime('%d.%m.%y')
         }
         r = self.session.post('http://netschool.school.ioffe.ru/asp/Calendar/DayViewS.asp', data=params)
@@ -349,38 +347,28 @@ class NetschoolUser:
             date = datetime.datetime.today().date()
         date = (date - timedelta(date.weekday())).strftime('%d.%m.%y')
         params = {
-            'LoginType': '0',
+            # 'LoginType': '0',
             'AT': self.at,
             'VER': self.ver,
-            # 'MenuItem': '0',
-            # 'TabItem': '30',
-            'Relay': '-1',
+            # 'Relay': '-1',
             'DATE': date
         }
-        headers, params = self.getHeaders(self.last_page, params, self.cookies)
 
-        r = requests.post('http://netschool.school.ioffe.ru/asp/Calendar/WeekViewTimeS.asp', data=params, headers=headers)
-        self.last_page = 'http://netschool.school.ioffe.ru/asp/Calendar/WeekViewTimeS.asp'
+        r = self.session.post('http://netschool.school.ioffe.ru/asp/Calendar/WeekViewTimeS.asp', data=params)
 
         r = self.handleSecurityWarning(r)
-        if 'Set-Cookie' in r.headers:
-            self.cookies.update(getCookies(r.headers['set-Cookie']))
+
         soup = BeautifulSoup(r.text, 'lxml')
         self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
         self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
-        # parser
-        answer = []
-        soup = soup.find('div', class_='content')
-        # with open('netschool.html', 'w', encoding='UTF8') as file:
-        # file.write(r`.text)
-        trs = soup.find('table').find_all('tr')[1:]
-        for tr in trs:
-            lessons = list(tr.find_all('td')[1].descendants)[::2]
-            lessons = list(map(lambda x: x.replace('\xa0', ' ').strip() if x.replace('\xa0', ' ').strip() != '-' else None, lessons))
-            answer.append(lessons)
 
-        while len(answer) < 7:
-            answer.append([None])
+        answer = []
+        for day in soup.find('div', class_='content').find('table').find_all('tr')[1:]:
+            lessons = [lesson.replace('\xa0', ' ').strip() for lesson in list(day.find_all('td')[1].descendants)[::2]]
+            answer.append([lesson if lesson != '-' else None for lesson in lessons])
+
+        answer += [None] * (len(answer) - 7)
+
         sleep(self.sleep_time)
         return answer
 
@@ -448,6 +436,7 @@ def main(user_login, user_password):  # For development
         # print(nts.getDailyTimetable(datetime.date(year=2020, month=6, day=1)))  # holidays
         # print('getWeeklyTimetable():')
         # print(nts.getWeeklyTimetable())
+        # print(nts.getWeeklyTimetable(datetime.date(year=2020, month=11, day=9)))
     except Exception:
         print(format_exc())
 
