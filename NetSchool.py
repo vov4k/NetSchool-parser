@@ -15,45 +15,20 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 disable_warnings(InsecureRequestWarning)
 
 
-def contentLength(params):
-    return 2 * len(params) - 1 + sum([len(key) + len(value) for key, value in params.items()])
-
-
-def getCookies(cookies):
-    answer = {}
-    while cookies:
-        key_i = cookies.find('=')
-        key = cookies[:key_i]
-        value = cookies[key_i + 1: cookies.find(';')]
-        answer[key] = value
-        cookies = cookies[cookies.find('path'):]
-        cookie_end_i = cookies.find(',') + 1
-        if not cookie_end_i:
-            break
-        while cookie_end_i < len(cookies) and cookies[cookie_end_i] == ' ':
-            cookie_end_i += 1
-        cookies = cookies[cookie_end_i:]
-    return answer
-
-
-def cookiesToStr(cookies):
-    return ';'.join([key + '=' + value for key, value in cookies.items()])
-
-
 class NetschoolUser:
     def __init__(self, login, password):
 
         self.login_params = {
-            "ECardID": "",
+            # "ECardID": "",
             "CID": "2",
             "PID": "-1",
             "CN": "1",
             "SFT": "2",
             "SCID": "1",
-            "optional": "optional",
+            # "optional": "optional",
             "PCLID_IUP": "116_0",
-            "ThmID": "1",
-            # "PCLID": "116",
+            # "ThmID": "1",
+            "PCLID": "116",
             "RPTID": "0",
             "SID": "2589",
             "UN": login
@@ -138,7 +113,7 @@ class NetschoolUser:
         sleep(self.sleep_time)
         del self
 
-    def handleSecurityWarning(self, r):
+    def handle_security_warning(self, r):
         soup = BeautifulSoup(r.text, 'lxml').find('form', {'action': '/asp/SecurityWarning.asp'})
 
         if soup is not None:
@@ -173,14 +148,14 @@ class NetschoolUser:
             r = self.session.post(self.last_page, data=params)
         return r
 
-    def getAnnouncements(self):
+    def get_announcements(self):
         params = {
             'AT': self.at,
             'VER': self.ver
         }
         r = self.session.post('http://netschool.school.ioffe.ru/asp/Announce/ViewAnnouncements.asp', data=params)
 
-        r = self.handleSecurityWarning(r)
+        r = self.handle_security_warning(r)
 
         soup = BeautifulSoup(r.text, 'lxml')
         self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
@@ -247,7 +222,7 @@ class NetschoolUser:
         #         file_name = urlparse(answer_links[link][0]).path
         #         file_name = file_name[file_name.rfind('/') + 1:]
         #         with open('modules/tmp/' + file_name, 'wb') as file:
-        #             file.write(self.getFile(answer_links[link][0], answer_links[link][1]))
+        #             file.write(self.get_file(answer_links[link][0], answer_links[link][1]))
         #         answer_links[link] = [1, file_name, answer_links[link][0]]
         #     else:
         #         answer_links[link] = [0, answer_links[link]]
@@ -255,7 +230,7 @@ class NetschoolUser:
         sleep(self.sleep_time)
         return answer
 
-    def getFile(self, url, attachment_id):
+    def get_file(self, url, attachment_id):
         params = {
             'AT': self.at,
             'VER': self.ver,
@@ -264,11 +239,11 @@ class NetschoolUser:
         headers, params = self.getHeaders(self.last_page, params, self.cookies)
         r = requests.post(url, data=params, headers=headers)
         self.last_page = url
-        if 'Set-Cookie' in r.headers:
-            self.cookies.update(getCookies(r.headers['set-Cookie']))
+        # if 'Set-Cookie' in r.headers:
+        #     self.cookies.update(getCookies(r.headers['set-Cookie']))
         return r.content
 
-    def getDailyTimetable(self, date=None):
+    def get_daily_timetable(self, date=None):
         if date is None:
             date = datetime.datetime.today().date()
 
@@ -285,7 +260,7 @@ class NetschoolUser:
         }
         r = self.session.post('http://netschool.school.ioffe.ru/asp/Calendar/DayViewS.asp', data=params)
 
-        r = self.handleSecurityWarning(r)
+        r = self.handle_security_warning(r)
 
         soup = BeautifulSoup(r.text, 'lxml')
         self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
@@ -352,7 +327,7 @@ class NetschoolUser:
         sleep(self.sleep_time)
         return answer
 
-    def getWeeklyTimetable(self, date=None):
+    def get_weekly_timetable(self, date=None):
         if date is None:
             date = datetime.datetime.today().date()
         date = (date - timedelta(date.weekday())).strftime('%d.%m.%y')
@@ -366,7 +341,7 @@ class NetschoolUser:
 
         r = self.session.post('http://netschool.school.ioffe.ru/asp/Calendar/WeekViewTimeS.asp', data=params)
 
-        r = self.handleSecurityWarning(r)
+        r = self.handle_security_warning(r)
 
         soup = BeautifulSoup(r.text, 'lxml')
         self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
@@ -405,7 +380,7 @@ class NetschoolUser:
     #     r = requests.post('http://netschool.school.ioffe.ru/asp/SetupSchool/Calendar/EditEvent.asp', data=params, headers=headers)
     #     self.last_page = 'http://netschool.school.ioffe.ru/asp/SetupSchool/Calendar/EditEvent.asp'
 
-    #     r = self.handleSecurityWarning(r)
+    #     r = self.handle_security_warning(r)
     #     if 'Set-Cookie' in r.headers:
     #         self.cookies.update(getCookies(r.headers['set-Cookie']))
     #     soup = BeautifulSoup(r.text, 'lxml')
@@ -437,16 +412,16 @@ def main(user_login, user_password):  # For development
 
     try:
         pass
-        # print('getAnnouncements():')
-        # print(nts.getAnnouncements())
-        # print('getDailyTimetable:')
-        # print(nts.getDailyTimetable())
-        # print(nts.getDailyTimetable(datetime.date(year=2021, month=1, day=1)))
-        # print(nts.getDailyTimetable(datetime.date(year=2020, month=11, day=25)))
-        # print(nts.getDailyTimetable(datetime.date(year=2020, month=6, day=1)))  # holidays
-        # print('getWeeklyTimetable():')
-        # print(nts.getWeeklyTimetable())
-        # print(nts.getWeeklyTimetable(datetime.date(year=2020, month=11, day=9)))
+        print('get_announcements():')
+        print(nts.get_announcements())
+        # print('get_daily_timetable:')
+        # print(nts.get_daily_timetable())
+        # print(nts.get_daily_timetable(datetime.date(year=2021, month=1, day=1)))
+        # print(nts.get_daily_timetable(datetime.date(year=2020, month=11, day=25)))
+        # print(nts.get_daily_timetable(datetime.date(year=2020, month=6, day=1)))  # holidays
+        # print('get_weekly_timetable():')
+        # print(nts.get_weekly_timetable())
+        # print(nts.get_weekly_timetable(datetime.date(year=2020, month=11, day=9)))
     except Exception:
         print(format_exc())
 

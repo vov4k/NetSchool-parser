@@ -4,7 +4,12 @@ from datetime import datetime
 from NetSchool import NetschoolUser
 
 
-def main():
+def infinite():
+    while True:
+        onetime()
+
+
+def onetime():
     mysql = MySQL("MySQL/config.json")
 
     people = mysql.query("SELECT * FROM `users`")
@@ -30,7 +35,7 @@ def main():
                 print("Login success")
                 if not got_announcements:
                     try:
-                        announcements = nts.getAnnouncements()
+                        announcements = nts.get_announcements()
                         print("Got announcements")
                         for author, title, date, text in announcements:
                             announcements_sql.append(
@@ -60,4 +65,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    onetime()
