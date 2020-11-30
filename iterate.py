@@ -9,10 +9,12 @@ def main():
 
     people = mysql.query("SELECT * FROM `users`")
 
-    sql = [
+    announcements_sql = [
         "LOCK TABLES announcements WRITE;",
         "TRUNCATE TABLE `announcements`;"
     ]
+
+    got_announcements = False
 
     for person in people:
 
@@ -20,25 +22,38 @@ def main():
 
         nts = NetschoolUser(person["username"], person["password"])
 
-        if nts.login():
-            print("Login success")
-            # for author, title, date, text in nts.getAnnouncements():
-            #     sql += "INSERT INTO `announcements` (`author`, `title`, `date`, `text`) VALUES ({}, {}, {}, {});\n".format(author, title, date, text)
-        else:
-            print("Login failed")
+        cur_daytime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        nts.logout()
-        print("Logout\n")
+        try:
+
+            if nts.login():
+                print("Login success")
+                if not got_announcements:
+                    try:
+                        announcements = nts.getAnnouncements()
+                        print("Got announcements")
+                        for author, title, date, text in announcements:
+                            announcements_sql.append(
+                                "INSERT INTO `announcements` (`author`, `title`, `date`, `text`) VALUES (\"{}\", \"{}\", \"{}\", \"{}\");".format(author, title, date, text)
+                            )
+
+                        got_announcements = True
+                    except Exception:
+                        pass
+            else:
+                print("Login failed")
+
+            nts.logout()
+            print("Logout\n")
+
+            mysql.query("UPDATE `users` SET `last_update` = %s WHERE `id` = %s", (cur_daytime, person["id"]))
+
+        except Exception:
+            pass
 
         del nts
 
-        cur_daytime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        mysql.query("UPDATE `users` SET `last_update` = %s WHERE `id` = %s", (cur_daytime, person["id"]))
-
-    sql.append("UNLOCK TABLES;")
-
-    for request in sql:
+    for request in announcements_sql + ["UNLOCK TABLES;"]:
         mysql.query(request)
 
     del mysql

@@ -174,49 +174,53 @@ class NetschoolUser:
         return r
 
     def getAnnouncements(self):
-        params = {'AT': self.at, 'VER': self.ver}
-        headers, params = self.getHeaders(self.last_page, params, self.cookies)
-
-        r = requests.post('http://netschool.school.ioffe.ru/asp/Announce/ViewAnnouncements.asp', data=params, headers=headers)
-        self.last_page = 'http://netschool.school.ioffe.ru/asp/Announce/ViewAnnouncements.asp'
+        params = {
+            'AT': self.at,
+            'VER': self.ver
+        }
+        r = self.session.post('http://netschool.school.ioffe.ru/asp/Announce/ViewAnnouncements.asp', data=params)
 
         r = self.handleSecurityWarning(r)
-
-        if 'Set-Cookie' in r.headers:
-            self.cookies.update(getCookies(r.headers['set-Cookie']))
 
         soup = BeautifulSoup(r.text, 'lxml')
         self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
         self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
-        # parser
-        advertisements = soup.find('div', class_='content').find_all('div', class_='advertisement')
+
+        announcements = soup.find('div', class_='content').find_all('div', class_='advertisement')
         answer = []
-        answer_links = []
-        for advertisement in advertisements:
+        # answer_links = []
+        for advertisement in announcements:
             author = advertisement.find('div', class_='adver-profile').find('span').text.strip()
+
             advertisement = advertisement.find('div', class_='adver-body')
+
             title = advertisement.find('h3')
             title.span.decompose()
-            date = advertisement.find('div', class_='adver-info').find('span').text.strip()
+
+            date = datetime.datetime.strptime(advertisement.find('div', class_='adver-info').find('span').text.strip(), '%d.%m.%y').date()
+
             content = advertisement.find('div', class_='adver-content')
-            brs = content.find_all('br')
-            for br in brs:
-                br.replaceWith('\n')
-            fieldsets = content.find_all('div', class_='fieldset')
-            for fieldset in fieldsets:
-                fieldset_con = fieldset.find('div').find('span')
-                if 'AttachmentSpan' in fieldset_con.get('class'):
-                    fieldset_con = fieldset_con.find('a')
-                    if fieldset_con.has_attr('href'):
-                        fieldset_con = fieldset_con.get('href')
+
+            for br in content.find_all('br'):
+                br.replace_with('\n')
+
+            for fieldset in content.find_all('div', class_='fieldset'):
+
+                fieldset_content = fieldset.find('div').find('span')
+
+                if 'AttachmentSpan' in fieldset_content.get('class'):
+                    fieldset_content = fieldset_content.find('a')
+                    if fieldset_content.has_attr('href'):
+                        fieldset_content = fieldset_content.get('href')
                         try:
-                            fieldset_con = fieldset_con[fieldset_con.find('(') + 1:fieldset_con.rfind(')')]
-                            fieldset_id = fieldset_con[fieldset_con.rfind(',') + 1:].strip()
-                            fieldset_con = fieldset_con[fieldset_con.find('\'') + 1:fieldset_con.rfind('\'')].strip()
-                            if fieldset_con.startswith('/') or fieldset_con. startswith('\\'):
-                                fieldset_con = 'http://netschool.school.ioffe.ru' + fieldset_con
-                            answer_links.append([fieldset_con, fieldset_id])
-                            fieldset.replaceWith(fieldset_con)
+                            fieldset_content = fieldset_content[fieldset_content.find('(') + 1:fieldset_content.rfind(')')]
+                            # fieldset_id = fieldset_content[fieldset_content.rfind(',') + 1:].strip()
+                            fieldset_content = fieldset_content[fieldset_content.find('\'') + 1:fieldset_content.rfind('\'')].strip()
+
+                            if fieldset_content.startswith('/') or fieldset_content.startswith('\\'):
+                                fieldset_content = 'http://netschool.school.ioffe.ru' + fieldset_content
+                            # answer_links.append([fieldset_content, fieldset_id])
+                            fieldset.replaceWith(fieldset_content)
                         except Exception:
                             pass
             links = content.find_all('a')
@@ -227,10 +231,16 @@ class NetschoolUser:
                     to_replace = ''
                 if link.has_attr('href'):
                     to_replace += str(re.search(r'((https?:\/\/)|\/)[^\s]*', str(link.get('href')))[0])
-                    answer_links.append(str(link.get('href')))
+                    # answer_links.append(str(link.get('href')))
                 link.replaceWith(to_replace)
-            content = content.text.replace('Присоединенные файлы\n', 'Присоединенные файлы:').strip()
-            answer.append([author, title.text, date, content])
+
+            answer.append([
+                author,
+                title.text,
+                date,
+                content.text.replace('Присоединенные файлы\n', 'Присоединенные файлы:')
+                .replace('\r\n', '\n').replace('\t', '').replace('\xa0', '').strip()
+            ])
 
         # for link in range(len(answer_links)):
         #     if type(answer_links[link]) == list and urlparse(answer_links[link][0]).netloc == 'netschool.school.ioffe.ru':
@@ -241,8 +251,8 @@ class NetschoolUser:
         #         answer_links[link] = [1, file_name, answer_links[link][0]]
         #     else:
         #         answer_links[link] = [0, answer_links[link]]
-        sleep(self.sleep_time)
 
+        sleep(self.sleep_time)
         return answer
 
     def getFile(self, url, attachment_id):
