@@ -42,23 +42,6 @@ class NetschoolUser:
 
         self.session = requests.Session()
 
-    # def get_menuitem_tabitem(referer, to):
-    #   referer = referer[referer.find('asp') + 4:]
-    #   table1 = {
-    #       'Announce/ViewAnnouncements.asp' : '0',
-    #       'Curriculum/Assignments.asp':'16',
-    #       'Reports/Reports.asp':'14',
-    #       'Calendar/WeekViewTimeS.asp':'12',
-    #       'SetupSchool/Calendar/YearView.asp':'12',
-    #       'Calendar/DayViewS.asp': '12',
-    #       'Calendar/MonthViewS.asp': '12'
-    #   }
-    #   try:
-    #       menuitem = table1[referer]
-    #   except Exception:
-    #       menuitem = ''
-    #   return menuitem, tabitem
-
     def login(self):
         # netschool.school.ioffe.ru
 
@@ -73,7 +56,6 @@ class NetschoolUser:
         salt = salt[salt.find('\'') + 1: salt.rfind('\'')].strip()
 
         self.login_params['PW2'] = md5((str(salt) + md5(self.user_password.encode()).hexdigest()).encode()).hexdigest()
-
         self.login_params['PW'] = self.login_params['PW2'][:len(self.user_password)]
 
         sleep(self.sleep_time)
@@ -183,21 +165,20 @@ class NetschoolUser:
 
                 fieldset_content = fieldset.find('div').find('span')
 
-                if 'AttachmentSpan' in fieldset_content.get('class'):
-                    fieldset_content = fieldset_content.find('a')
-                    if fieldset_content.has_attr('href'):
-                        fieldset_content = fieldset_content.get('href')
-                        try:
-                            fieldset_content = fieldset_content[fieldset_content.find('(') + 1:fieldset_content.rfind(')')]
-                            # fieldset_id = fieldset_content[fieldset_content.rfind(',') + 1:].strip()
-                            fieldset_content = fieldset_content[fieldset_content.find('\'') + 1:fieldset_content.rfind('\'')].strip()
+                if 'AttachmentSpan' in fieldset_content.get('class') and fieldset_content.find('a').has_attr('href'):
+                    fieldset_content = fieldset_content.find('a').get('href')
+                    try:
+                        fieldset_content = fieldset_content[fieldset_content.find('(') + 1:fieldset_content.rfind(')')]
+                        # fieldset_id = fieldset_content[fieldset_content.rfind(',') + 1:].strip()
+                        fieldset_content = fieldset_content[fieldset_content.find('\'') + 1:fieldset_content.rfind('\'')].strip()
 
-                            if fieldset_content.startswith('/') or fieldset_content.startswith('\\'):
-                                fieldset_content = 'http://netschool.school.ioffe.ru' + fieldset_content
-                            # answer_links.append([fieldset_content, fieldset_id])
-                            fieldset.replaceWith(fieldset_content)
-                        except Exception:
-                            pass
+                        if fieldset_content.startswith('/') or fieldset_content.startswith('\\'):
+                            fieldset_content = 'http://netschool.school.ioffe.ru' + fieldset_content
+                        # answer_links.append([fieldset_content, fieldset_id])
+                        fieldset.replaceWith(fieldset_content)
+                    except Exception:
+                        pass
+
             links = content.find_all('a')
             for link in links:
                 if link.has_attr('title'):
@@ -230,30 +211,28 @@ class NetschoolUser:
         sleep(self.sleep_time)
         return answer
 
-    def get_file(self, url, attachment_id):
-        params = {
-            'AT': self.at,
-            'VER': self.ver,
-            'attachmentId': str(attachment_id)
-        }
-        headers, params = self.getHeaders(self.last_page, params, self.cookies)
-        r = requests.post(url, data=params, headers=headers)
-        self.last_page = url
-        # if 'Set-Cookie' in r.headers:
-        #     self.cookies.update(getCookies(r.headers['set-Cookie']))
-        return r.content
+    # def get_file(self, url, attachment_id):
+    #     params = {
+    #         'AT': self.at,
+    #         'VER': self.ver,
+    #         'attachmentId': str(attachment_id)
+    #     }
+    #     headers, params = self.getHeaders(self.last_page, params, self.cookies)
+    #     r = requests.post(url, data=params, headers=headers)
+    #     self.last_page = url
+    #     # if 'Set-Cookie' in r.headers:
+    #     #     self.cookies.update(getCookies(r.headers['set-Cookie']))
+    #     return r.content
 
-    def get_daily_timetable(self, date=None):
+    def get_daily_timetable(self, date=None, get_class=True):
         if date is None:
             date = datetime.datetime.today().date()
 
-        if datetime.datetime.today().date().month >= 9:
-            school_year = datetime.datetime.today().date().year
-        else:
-            school_year = datetime.datetime.today().date().year - 1
+        school_year = datetime.datetime.today().date().year
+        if datetime.datetime.today().date().month < 9:
+            school_year -= 1
 
         params = {
-            # 'LoginType': '0',
             'AT': self.at,
             'VER': self.ver,
             'DATE': date.strftime('%d.%m.%y')
@@ -267,6 +246,8 @@ class NetschoolUser:
         self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
 
         soup = soup.find('div', class_='content')
+
+        _class = soup.find('input', {'name': 'PCLID_IUP_label'}).get('value').strip()
 
         if soup.find('div', 'alert-info') is None:
             answer = []
@@ -325,14 +306,15 @@ class NetschoolUser:
             answer = None
 
         sleep(self.sleep_time)
+        if get_class:
+            return _class, answer
         return answer
 
-    def get_weekly_timetable(self, date=None):
+    def get_weekly_timetable(self, date=None, get_class=False):
         if date is None:
             date = datetime.datetime.today().date()
         date = (date - timedelta(date.weekday())).strftime('%d.%m.%y')
         params = {
-            # 'LoginType': '0',
             'AT': self.at,
             'VER': self.ver,
             # 'Relay': '-1',
@@ -347,14 +329,20 @@ class NetschoolUser:
         self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
         self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
 
+        soup = soup.find('div', class_='content')
+
+        _class = soup.find('input', {'name': 'PCLID_IUP_label'}).get('value').strip()
+
         answer = []
-        for day in soup.find('div', class_='content').find('table').find_all('tr')[1:]:
+        for day in soup.find('table').find_all('tr')[1:]:
             lessons = [lesson.replace('\xa0', ' ').strip() for lesson in list(day.find_all('td')[1].descendants)[::2]]
             answer.append([lesson if lesson != '-' else None for lesson in lessons])
 
         answer += [None] * (len(answer) - 7)
 
         sleep(self.sleep_time)
+        if get_class:
+            return _class, answer
         return answer
 
     # def getEvent(self, event_id, event_type):
@@ -365,7 +353,6 @@ class NetschoolUser:
     #         'vacation': 4
     #     }[event_type]
     #     params = {
-    #         'LoginType': '0',
     #         'AT': self.at,
     #         'VER': self.ver,
     #         'EventID': str(event_id),
@@ -412,16 +399,18 @@ def main(user_login, user_password):  # For development
 
     try:
         pass
-        print('get_announcements():')
-        print(nts.get_announcements())
-        # print('get_daily_timetable:')
-        # print(nts.get_daily_timetable())
-        # print(nts.get_daily_timetable(datetime.date(year=2021, month=1, day=1)))
-        # print(nts.get_daily_timetable(datetime.date(year=2020, month=11, day=25)))
-        # print(nts.get_daily_timetable(datetime.date(year=2020, month=6, day=1)))  # holidays
+        # print('get_announcements():')
+        # print(nts.get_announcements())
+        # print('get_daily_timetable():')
+        # print(nts.get_daily_timetable(get_class=True))
+        # print(nts.get_daily_timetable(datetime.date(year=2021, month=1, day=1), get_class=True))
+        # print(nts.get_daily_timetable(datetime.date(year=2020, month=11, day=25), get_class=True))
+        # print(nts.get_daily_timetable(datetime.date(year=2020, month=6, day=1), get_class=True))  # holidays
         # print('get_weekly_timetable():')
-        # print(nts.get_weekly_timetable())
-        # print(nts.get_weekly_timetable(datetime.date(year=2020, month=11, day=9)))
+        # print(nts.get_weekly_timetable(get_class=True))
+        # print(nts.get_weekly_timetable(datetime.date(year=2020, month=11, day=9), get_class=True))
+        # print('get_activities():')
+        # print(nts.get_activities())
     except Exception:
         print(format_exc())
 
