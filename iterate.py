@@ -3,6 +3,8 @@ from datetime import datetime
 
 from NetSchool import NetschoolUser
 
+DOCPATH = 'doctmp'
+
 
 def infinite():
     while True:
@@ -25,7 +27,7 @@ def onetime():
 
         print("Running for person | {} {}...".format(person["first_name"], person["last_name"]))
 
-        nts = NetschoolUser(person["username"], person["password"])
+        nts = NetschoolUser(person["username"], person["password"], DOCPATH)
 
         cur_daytime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 

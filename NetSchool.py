@@ -1,7 +1,9 @@
-import requests
+from requests import Session, post as req_post
 from time import sleep
 from bs4 import BeautifulSoup
 from datetime import timedelta
+from json import load as json_load
+from os.path import split as os_split, normpath as os_normpath, join as os_join
 import datetime
 import re
 # from urllib.parse import urlparse
@@ -15,8 +17,28 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 disable_warnings(InsecureRequestWarning)
 
 
+def mkpath(*paths):
+    return os_normpath(os_join(*paths))
+
+
+def upload_file(path):
+    with open("config.json", 'r', encoding="utf-8") as file:
+        file_upload_key = json_load(file, encoding="utf-8")["file_upload_key"]
+
+    with open(path, 'rb') as file:
+        r = req_post(
+            "https://netschool.npanuhin.me/src/upload_file.php",
+            data={'file_upload_key': file_upload_key, 'path': 'doc'},
+            files={'file': file}, verify=False
+        )
+
+    if r.status_code == 200 and r.text == 'success':
+        return "https://netschool.npanuhin.me/doc/" + os_split(path)[1].strip()
+    return None
+
+
 class NetschoolUser:
-    def __init__(self, login, password):
+    def __init__(self, login, password, download_path):
 
         self.login_params = {
             # "ECardID": "",
@@ -36,11 +58,12 @@ class NetschoolUser:
 
         self.user_login = login
         self.user_password = password
-        self.sleep_time = 0.5
+        self.download_path = download_path
+        self.sleep_time = 0
 
         self.at, self.ver = "", ""
 
-        self.session = requests.Session()
+        self.session = Session()
 
     def login(self):
         # netschool.school.ioffe.ru
@@ -130,6 +153,22 @@ class NetschoolUser:
             r = self.session.post(self.last_page, data=params)
         return r
 
+    def download_attachment(self, url, attachment_id):
+        params = {
+            'AT': self.at,
+            'VER': self.ver,
+            'attachmentId': attachment_id
+        }
+        r = self.session.post(url, data=params)
+
+        if r.status_code == 200:
+            filepath = mkpath(self.download_path, os_split(url)[1])
+            with open(filepath, 'wb') as file:
+                file.write(r.content)
+            return filepath
+
+        return None
+
     def get_announcements(self):
         params = {
             'AT': self.at,
@@ -145,7 +184,6 @@ class NetschoolUser:
 
         announcements = soup.find('div', class_='content').find_all('div', class_='advertisement')
         answer = []
-        # answer_links = []
         for advertisement in announcements:
             author = advertisement.find('div', class_='adver-profile').find('span').text.strip()
 
@@ -168,16 +206,20 @@ class NetschoolUser:
                 if 'AttachmentSpan' in fieldset_content.get('class') and fieldset_content.find('a').has_attr('href'):
                     fieldset_content = fieldset_content.find('a').get('href')
                     try:
-                        fieldset_content = fieldset_content[fieldset_content.find('(') + 1:fieldset_content.rfind(')')]
-                        # fieldset_id = fieldset_content[fieldset_content.rfind(',') + 1:].strip()
-                        fieldset_content = fieldset_content[fieldset_content.find('\'') + 1:fieldset_content.rfind('\'')].strip()
+                        link, attachment_id = fieldset_content[fieldset_content.find('(') + 1:fieldset_content.rfind(')')].split(',')
+                        link = link[link.find("'") + 1:link.rfind("'")]
+                        if link.startswith('/') or link.startswith('\\'):
+                            link = 'http://netschool.school.ioffe.ru' + link
 
-                        if fieldset_content.startswith('/') or fieldset_content.startswith('\\'):
-                            fieldset_content = 'http://netschool.school.ioffe.ru' + fieldset_content
-                        # answer_links.append([fieldset_content, fieldset_id])
-                        fieldset.replaceWith(fieldset_content)
-                    except Exception:
-                        pass
+                        new_link = upload_file(self.download_attachment(link, attachment_id))
+
+                        if new_link is None:
+                            fieldset.replace_with(link)
+                        else:
+                            fieldset.replace_with(new_link)
+                    except Exception as e:
+                        print("Exception in file upload:", e)
+                        fieldset.replace_with(fieldset_content)
 
             links = content.find_all('a')
             for link in links:
@@ -188,7 +230,7 @@ class NetschoolUser:
                 if link.has_attr('href'):
                     to_replace += str(re.search(r'((https?:\/\/)|\/)[^\s]*', str(link.get('href')))[0])
                     # answer_links.append(str(link.get('href')))
-                link.replaceWith(to_replace)
+                link.replace_with(to_replace)
 
             answer.append([
                 author,
@@ -197,16 +239,6 @@ class NetschoolUser:
                 content.text.replace('Присоединенные файлы\n', 'Присоединенные файлы:')
                 .replace('\r\n', '\n').replace('\t', '').replace('\xa0', '').strip()
             ])
-
-        # for link in range(len(answer_links)):
-        #     if type(answer_links[link]) == list and urlparse(answer_links[link][0]).netloc == 'netschool.school.ioffe.ru':
-        #         file_name = urlparse(answer_links[link][0]).path
-        #         file_name = file_name[file_name.rfind('/') + 1:]
-        #         with open('modules/tmp/' + file_name, 'wb') as file:
-        #             file.write(self.get_file(answer_links[link][0], answer_links[link][1]))
-        #         answer_links[link] = [1, file_name, answer_links[link][0]]
-        #     else:
-        #         answer_links[link] = [0, answer_links[link]]
 
         sleep(self.sleep_time)
         return answer
@@ -218,7 +250,7 @@ class NetschoolUser:
     #         'attachmentId': str(attachment_id)
     #     }
     #     headers, params = self.getHeaders(self.last_page, params, self.cookies)
-    #     r = requests.post(url, data=params, headers=headers)
+    #     r = req_post(url, data=params, headers=headers)
     #     self.last_page = url
     #     # if 'Set-Cookie' in r.headers:
     #     #     self.cookies.update(getCookies(r.headers['set-Cookie']))
@@ -400,10 +432,11 @@ class NetschoolUser:
                         if tr.find('td').find('span', class_='AttachmentSpan') is not None:
                             link = tr.find('td').find('a').get('href')
                             link, attachment_id = link[link.find('(') + 1:link.rfind(')') - 1].split(',')
-                            table[tr.find('th').text.strip()] = [
-                                'http://netschool.school.ioffe.ru' + link[link.find("'") + 1:link.rfind("'")],
-                                int(attachment_id)
-                            ]
+                            link = link[link.find("'") + 1:link.rfind("'")]
+                            if link.startswith('/') or link.startswith('\\'):
+                                link = 'http://netschool.school.ioffe.ru' + link
+
+                            table[tr.find('th').text.strip()] = [link, int(attachment_id)]
                         else:
                             table[tr.find('th').text.strip()] = tr.find('td').text.strip()
 
@@ -474,7 +507,7 @@ class NetschoolUser:
     #     }
     #     headers, params = self.getHeaders(self.last_page, params, self.cookies)
 
-    #     r = requests.post('http://netschool.school.ioffe.ru/asp/SetupSchool/Calendar/EditEvent.asp', data=params, headers=headers)
+    #     r = req_post('http://netschool.school.ioffe.ru/asp/SetupSchool/Calendar/EditEvent.asp', data=params, headers=headers)
     #     self.last_page = 'http://netschool.school.ioffe.ru/asp/SetupSchool/Calendar/EditEvent.asp'
 
     #     r = self.handle_security_warning(r)
@@ -501,7 +534,7 @@ class NetschoolUser:
 def main(user_login, user_password):  # For development
     print("Starting...")
 
-    nts = NetschoolUser(user_login, user_password)
+    nts = NetschoolUser(user_login, user_password, 'doctmp')
 
     if not nts.login():
         exit("Login failed")
@@ -509,8 +542,8 @@ def main(user_login, user_password):  # For development
 
     try:
         pass
-        # print('get_announcements():')
-        # print(nts.get_announcements())
+        print('get_announcements():')
+        print(nts.get_announcements())
         # print('get_daily_timetable():')
         # print(nts.get_daily_timetable(get_class=True))
         # print(nts.get_daily_timetable(datetime.date(year=2021, month=1, day=1), get_class=True))
@@ -535,5 +568,4 @@ if __name__ == "__main__":
         netschool_login, netschool_pwd = map(str.strip, file.readlines())
 
     print("Using login: {} and password: {}".format(netschool_login, netschool_pwd))
-
     main(netschool_login, netschool_pwd)

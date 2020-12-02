@@ -4,3 +4,8 @@
 
 # Cache
 __pycache__
+
+# Doc
+/doctmp/*
+
+!.gitkeep
