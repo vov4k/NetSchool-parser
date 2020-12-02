@@ -224,7 +224,7 @@ class NetschoolUser:
     #     #     self.cookies.update(getCookies(r.headers['set-Cookie']))
     #     return r.content
 
-    def get_daily_timetable(self, date=None, get_class=True):
+    def get_daily_timetable(self, date=None, get_class=False):
         if date is None:
             date = datetime.datetime.today().date()
 
@@ -313,12 +313,12 @@ class NetschoolUser:
     def get_weekly_timetable(self, date=None, get_class=False):
         if date is None:
             date = datetime.datetime.today().date()
-        date = (date - timedelta(date.weekday())).strftime('%d.%m.%y')
+        date = date - timedelta(date.weekday())
         params = {
             'AT': self.at,
             'VER': self.ver,
             # 'Relay': '-1',
-            'DATE': date
+            'DATE': date.strftime('%d.%m.%y')
         }
 
         r = self.session.post('http://netschool.school.ioffe.ru/asp/Calendar/WeekViewTimeS.asp', data=params)
@@ -339,6 +339,116 @@ class NetschoolUser:
             answer.append([lesson if lesson != '-' else None for lesson in lessons])
 
         answer += [None] * (len(answer) - 7)
+
+        sleep(self.sleep_time)
+        if get_class:
+            return _class, answer
+        return answer
+
+    def get_diary(self, date=None, get_class=False):
+        if date is None:
+            date = datetime.datetime.today().date()
+        date = date - timedelta(date.weekday())
+        params = {
+            'AT': self.at,
+            'VER': self.ver,
+            # 'Relay': '-1',
+            'DATE': date.strftime('%d.%m.%y')
+        }
+
+        r = self.session.post('http://netschool.school.ioffe.ru/asp/Curriculum/Assignments.asp', data=params)
+
+        r = self.handle_security_warning(r)
+
+        soup = BeautifulSoup(r.text, 'lxml')
+        self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
+        self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
+
+        soup = soup.find('div', class_='content')
+
+        _class = soup.find('input', {'name': 'PCLID_IUP_label'}).get('value').strip()
+
+        answer = {date + timedelta(days=i): [] for i in range(7)}
+
+        def pasre_lesson(lesson):
+            lesson = lesson.find_all('td')
+            start_index = 0 if len(lesson) == 5 else 1
+
+            info_link = lesson[start_index + 2].find('a').get('href')
+
+            AID, CID, TP = map(int, info_link[info_link.find('(') + 1:info_link.rfind(')')].split(','))
+
+            params = {
+                'AT': self.at,
+                # 'VER': self.ver,
+                'AID': AID,
+                'CID': CID,
+                'TP': TP
+            }
+
+            r = self.session.post('http://netschool.school.ioffe.ru/asp/ajax/Assignments/GetAssignmentInfo.asp', data=params).json()
+
+            if 'isError' in r and r['isError']:
+                info = None
+            else:
+                title = r['data']['strTitle'] if 'strTitle' in r['data'] else ""
+                table = r['data']['strTable'] if 'strTable' in r['data'] else ""
+                if table:
+                    trs = BeautifulSoup(table, 'lxml').find('table').find_all('tr')
+                    table = {}
+                    for tr in trs:
+                        if tr.find('td').find('span', class_='AttachmentSpan') is not None:
+                            link = tr.find('td').find('a').get('href')
+                            link, attachment_id = link[link.find('(') + 1:link.rfind(')') - 1].split(',')
+                            table[tr.find('th').text.strip()] = [
+                                'http://netschool.school.ioffe.ru' + link[link.find("'") + 1:link.rfind("'")],
+                                int(attachment_id)
+                            ]
+                        else:
+                            table[tr.find('th').text.strip()] = tr.find('td').text.strip()
+
+                info = [title, table]
+
+            result = [
+                lesson[start_index].text.strip(),
+                lesson[start_index + 1].text.strip(),
+                lesson[start_index + 2].find('a').text.strip(),
+                int(lesson[start_index + 3].text),
+                lesson[start_index + 4].text.strip(),
+                info
+            ]
+
+            return result
+
+        tr_index = 0
+        soup = soup.find('table').find_all('tr')[1:]
+        while tr_index < len(soup):
+            while tr_index < len(soup) and len(soup[tr_index].find_all('td')) < 6:
+                tr_index += 1
+
+            cur_day, cur_month, cur_year = soup[tr_index].find_all('td')[0].find('a').text.split(',')[0].strip().split('.')
+            cur_date = datetime.date(year=datetime.datetime.strptime(cur_year, '%y').year, month=int(cur_month), day=int(cur_day))
+
+            if cur_date < date or cur_date >= date + timedelta(days=7):
+                tr_index += 1
+                while tr_index < len(soup) and len(soup[tr_index].find_all('td')) < 6:
+                    tr_index += 1
+                continue
+
+            answer[cur_date].append(pasre_lesson(soup[tr_index]))
+
+            tr_index += 1
+            while tr_index < len(soup) and len(soup[tr_index].find_all('td')) < 6:
+                if len(soup[tr_index].find_all('td')) == 5:
+                    answer[cur_date].append(pasre_lesson(soup[tr_index]))
+
+                tr_index += 1
+
+            for lesson in answer[cur_date]:
+                try:
+                    lesson[4] = int(lesson[4])
+                except ValueError:
+                    pass
 
         sleep(self.sleep_time)
         if get_class:
@@ -411,6 +521,8 @@ def main(user_login, user_password):  # For development
         # print(nts.get_weekly_timetable(datetime.date(year=2020, month=11, day=9), get_class=True))
         # print('get_activities():')
         # print(nts.get_activities())
+        # print('get_diary():')
+        # print(nts.get_diary(get_class=True))
     except Exception:
         print(format_exc())
 
