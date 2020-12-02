@@ -21,13 +21,15 @@ or just run `py -3 -m pip install -U requests beautifulsoup4 lxml PyMySQL[rsa]`
 #### MySQL
 
 Чтобы настроить MySQL:
-Создайте файл `/MySQL/config.json` со следующим содержанием:
+Создайте файл `/config.json` со следующим содержанием:
 ```
 {
-	"host": "{host}",
-	"user": "{username}",
-	"password": "{password}",
-	"database": "{database}"
+	"db_hostname": "{host}",
+	"db_username": "{username}",
+	"db_password": "{password}",
+	"db_name": "{database}",
+
+	"file_upload_key": "{file_upload_key}"
 }
 ```
 Или скопируйте из секретных источников...

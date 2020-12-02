@@ -10,7 +10,7 @@ def infinite():
 
 
 def onetime():
-    mysql = MySQL("MySQL/config.json")
+    mysql = MySQL("config.json")
 
     people = mysql.query("SELECT * FROM `users`")
 

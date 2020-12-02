@@ -7,10 +7,10 @@ class MySQL:
         with open(config_path, 'r', encoding="utf-8") as config_file:
             config = json_load(config_file, encoding="utf-8")
 
-        self.host = config["host"]
-        self.user = config["user"]
-        self.password = config["password"]
-        self.db = config["database"]
+        self.host = config["db_hostname"]
+        self.user = config["db_username"]
+        self.password = config["db_password"]
+        self.db = config["db_name"]
         # self.charset = config["charset"]
 
         self.connection = pymysql.connect(host=self.host,
@@ -35,7 +35,7 @@ class MySQL:
 
 
 def main():
-    mysql = MySQL("config.json")
+    mysql = MySQL("../config.json")
     print(mysql.query("SELECT * FROM `users`"))
 
 
