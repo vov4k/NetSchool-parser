@@ -1,7 +1,7 @@
 from MySQL.MySQL import MySQL
 from datetime import datetime
 
-from NetSchool import NetschoolUser
+from NetSchool import NetSchoolUser
 
 DOCPATH = 'doctmp'
 
@@ -27,7 +27,7 @@ def onetime():
 
         print("Running for person | {} {}...".format(person["first_name"], person["last_name"]))
 
-        nts = NetschoolUser(person["username"], person["password"], DOCPATH)
+        nts = NetSchoolUser(person["username"], person["password"], DOCPATH)
 
         cur_daytime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 

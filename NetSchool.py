@@ -38,8 +38,8 @@ def upload_file(path):
     return None
 
 
-class NetschoolUser:
-    def __init__(self, login, password, download_path):
+class NetSchoolUser:
+    def __init__(self, username, password, download_path):
 
         self.login_params = {
             # "ECardID": "",
@@ -54,11 +54,11 @@ class NetschoolUser:
             "PCLID": "116",
             "RPTID": "0",
             "SID": "2589",
-            "UN": login
+            "UN": username
         }
 
-        self.user_login = login
-        self.user_password = password
+        self.username = username
+        self.password = password
         self.download_path = download_path
         self.sleep_time = 0
 
@@ -81,8 +81,8 @@ class NetschoolUser:
         # salt = r[r.find('salt') + 4: r.find('salt') + 20]
         # salt = salt[salt.find('\'') + 1: salt.rfind('\'')].strip()
 
-        self.login_params['PW2'] = md5((str(salt) + md5(self.user_password.encode()).hexdigest()).encode()).hexdigest()
-        self.login_params['PW'] = self.login_params['PW2'][:len(self.user_password)]
+        self.login_params['PW2'] = md5((str(salt) + md5(self.password.encode()).hexdigest()).encode()).hexdigest()
+        self.login_params['PW'] = self.login_params['PW2'][:len(self.password)]
 
         sleep(self.sleep_time)
 
@@ -238,7 +238,7 @@ class NetschoolUser:
                 title.text,
                 date,
                 content.text.replace('Присоединенные файлы\n', 'Присоединенные файлы:')
-                .replace('\r\n', '\n').replace('\t', '').replace('\xa0', '').strip()
+                .replace('\r\n', '\n').replace('\r', '').replace('\t', '').replace('\xa0', '').strip()
             ])
 
         sleep(self.sleep_time)
@@ -553,7 +553,7 @@ class NetschoolUser:
 def main(user_login, user_password):  # For development
     print("Starting...")
 
-    nts = NetschoolUser(user_login, user_password, 'doctmp')
+    nts = NetSchoolUser(user_login, user_password, 'doctmp')
 
     if not nts.login():
         exit("Login failed")
@@ -583,8 +583,9 @@ def main(user_login, user_password):  # For development
 
 
 if __name__ == "__main__":
-    with open("netschool_pwd.txt", 'r', encoding="utf-8") as file:
-        netschool_login, netschool_pwd = map(str.strip, file.readlines())
+    with open("config.json", 'r', encoding="utf-8") as file:
+        config = json_load(file, encoding="utf-8")
+        netschool_username, netschool_password = config["netschool_username"], config['netschool_password']
 
-    print("Using login: {} and password: {}".format(netschool_login, netschool_pwd))
-    main(netschool_login, netschool_pwd)
+    print("Using login: {} and password: {}".format(netschool_username, netschool_password))
+    main(netschool_username, netschool_password)

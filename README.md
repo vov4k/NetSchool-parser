@@ -10,17 +10,9 @@ Python modules:
 
 or just run `py -3 -m pip install -U requests beautifulsoup4 lxml PyMySQL[rsa]`
 
-#### NetSchool
+#### Config
 
-Создайте файл `/netschool_pwd.txt` со следующим содержанием:
-```
-{username}
-{password}
-```
-
-#### MySQL
-
-Чтобы настроить MySQL:
+Чтобы настроить NetSchool и MySQL:
 Создайте файл `/config.json` со следующим содержанием:
 ```
 {
@@ -29,7 +21,10 @@ or just run `py -3 -m pip install -U requests beautifulsoup4 lxml PyMySQL[rsa]`
 	"db_password": "{password}",
 	"db_name": "{database}",
 
-	"file_upload_key": "{file_upload_key}"
+	"file_upload_key": "{file_upload_key}",
+	
+	"netschool_username": "{netschool_username}",
+	"netschool_password": "{netschool_password}"
 }
 ```
 Или скопируйте из секретных источников...
