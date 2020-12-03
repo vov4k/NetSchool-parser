@@ -4,8 +4,8 @@ from bs4 import BeautifulSoup
 from datetime import timedelta
 from json import load as json_load
 from os.path import split as os_split, normpath as os_normpath, join as os_join
+from re import search as re_search
 import datetime
-import re
 # from urllib.parse import urlparse
 
 from hashlib import md5
@@ -101,7 +101,6 @@ class NetschoolUser:
 
             sleep(self.sleep_time)
 
-            # SecurityWarning
             r = self.session.post('http://netschool.school.ioffe.ru/asp/SecurityWarning.asp', data=params)
 
             soup = BeautifulSoup(r.text, 'lxml')
@@ -184,23 +183,22 @@ class NetschoolUser:
 
         announcements = soup.find('div', class_='content').find_all('div', class_='advertisement')
         answer = []
-        for advertisement in announcements:
-            author = advertisement.find('div', class_='adver-profile').find('span').text.strip()
+        for announcement in announcements:
+            author = announcement.find('div', class_='adver-profile').find('span').text.strip()
 
-            advertisement = advertisement.find('div', class_='adver-body')
+            announcement = announcement.find('div', class_='adver-body')
 
-            title = advertisement.find('h3')
+            title = announcement.find('h3')
             title.span.decompose()
 
-            date = datetime.datetime.strptime(advertisement.find('div', class_='adver-info').find('span').text.strip(), '%d.%m.%y').date()
+            date = datetime.datetime.strptime(announcement.find('div', class_='adver-info').find('span').text.strip(), '%d.%m.%y').date()
 
-            content = advertisement.find('div', class_='adver-content')
+            content = announcement.find('div', class_='adver-content')
 
             for br in content.find_all('br'):
                 br.replace_with('\n')
 
             for fieldset in content.find_all('div', class_='fieldset'):
-
                 fieldset_content = fieldset.find('div').find('span')
 
                 if 'AttachmentSpan' in fieldset_content.get('class') and fieldset_content.find('a').has_attr('href'):
@@ -228,7 +226,7 @@ class NetschoolUser:
                 else:
                     to_replace = ''
                 if link.has_attr('href'):
-                    to_replace += str(re.search(r'((https?:\/\/)|\/)[^\s]*', str(link.get('href')))[0])
+                    to_replace += str(re_search(r'((https?:\/\/)|\/)[^\s]*', str(link.get('href')))[0])
                     # answer_links.append(str(link.get('href')))
                 link.replace_with(to_replace)
 
@@ -538,29 +536,29 @@ def main(user_login, user_password):  # For development
 
     if not nts.login():
         exit("Login failed")
-    print('Login success')
+    print("Login success")
 
     try:
         pass
-        print('get_announcements():')
-        print(nts.get_announcements())
-        # print('get_daily_timetable():')
+        # print("get_announcements():")
+        # print(nts.get_announcements())
+        # print("get_daily_timetable():")
         # print(nts.get_daily_timetable(get_class=True))
         # print(nts.get_daily_timetable(datetime.date(year=2021, month=1, day=1), get_class=True))
         # print(nts.get_daily_timetable(datetime.date(year=2020, month=11, day=25), get_class=True))
         # print(nts.get_daily_timetable(datetime.date(year=2020, month=6, day=1), get_class=True))  # holidays
-        # print('get_weekly_timetable():')
+        # print("get_weekly_timetable():")
         # print(nts.get_weekly_timetable(get_class=True))
         # print(nts.get_weekly_timetable(datetime.date(year=2020, month=11, day=9), get_class=True))
-        # print('get_activities():')
+        # print("get_activities():")
         # print(nts.get_activities())
-        # print('get_diary():')
+        # print("get_diary():")
         # print(nts.get_diary(get_class=True))
     except Exception:
         print(format_exc())
 
     nts.logout()
-    print('Logout')
+    print("Logout")
 
 
 if __name__ == "__main__":
