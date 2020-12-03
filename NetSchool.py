@@ -1,20 +1,21 @@
-from requests import Session, post as req_post
-from time import sleep
-from bs4 import BeautifulSoup
-from datetime import timedelta
-from json import load as json_load
 from os.path import split as os_split, normpath as os_normpath, join as os_join
+from requests import Session, post as req_post
 from re import search as re_search
+from json import load as json_load
+from datetime import timedelta
+from bs4 import BeautifulSoup
+from hashlib import md5
+from time import sleep
 import datetime
 # from urllib.parse import urlparse
-
-from hashlib import md5
 
 from traceback import format_exc  # for debugging
 
 from requests.packages.urllib3 import disable_warnings
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 disable_warnings(InsecureRequestWarning)
+
+from regex import REGEX
 
 
 def mkpath(*paths):
@@ -75,8 +76,10 @@ class NetschoolUser:
         self.login_params['LoginType'] = soup.find('input', {'name': 'LoginType'}).get('value').strip()
         self.login_params['LT'] = soup.find('input', {'name': 'LT'}).get('value').strip()
 
-        salt = r[r.find('salt') + 4: r.find('salt') + 20]
-        salt = salt[salt.find('\'') + 1: salt.rfind('\'')].strip()
+        salt = re_search(REGEX['salt'], r).group(1)
+
+        # salt = r[r.find('salt') + 4: r.find('salt') + 20]
+        # salt = salt[salt.find('\'') + 1: salt.rfind('\'')].strip()
 
         self.login_params['PW2'] = md5((str(salt) + md5(self.user_password.encode()).hexdigest()).encode()).hexdigest()
         self.login_params['PW'] = self.login_params['PW2'][:len(self.user_password)]
@@ -202,19 +205,19 @@ class NetschoolUser:
                 fieldset_content = fieldset.find('div').find('span')
 
                 if 'AttachmentSpan' in fieldset_content.get('class') and fieldset_content.find('a').has_attr('href'):
-                    fieldset_content = fieldset_content.find('a').get('href')
+                    fieldset_content = re_search(REGEX["attachment"], fieldset_content.find('a').get('href'))
                     try:
-                        link, attachment_id = fieldset_content[fieldset_content.find('(') + 1:fieldset_content.rfind(')')].split(',')
-                        link = link[link.find("'") + 1:link.rfind("'")]
+                        link, attachment_id = fieldset_content.group(1), fieldset_content.group(2)
                         if link.startswith('/') or link.startswith('\\'):
                             link = 'http://netschool.school.ioffe.ru' + link
 
                         new_link = upload_file(self.download_attachment(link, attachment_id))
 
                         if new_link is None:
-                            fieldset.replace_with(link)
-                        else:
-                            fieldset.replace_with(new_link)
+                            new_link = link
+
+                        fieldset.replace_with(new_link)
+
                     except Exception as e:
                         print("Exception in file upload:", e)
                         fieldset.replace_with(fieldset_content)
@@ -226,7 +229,7 @@ class NetschoolUser:
                 else:
                     to_replace = ''
                 if link.has_attr('href'):
-                    to_replace += str(re_search(r'((https?:\/\/)|\/)[^\s]*', str(link.get('href')))[0])
+                    to_replace += str(re_search(REGEX['link'], str(link.get('href')))[0])
                     # answer_links.append(str(link.get('href')))
                 link.replace_with(to_replace)
 
@@ -315,22 +318,19 @@ class NetschoolUser:
                     )
 
                 if tr[1].get('class') is not None:
-                    try:
-                        event_id = tr[1].find('a').get('href')
-                        event_id = event_id[:event_id.rfind(')')]
-                        event_id = int(event_id[event_id.rfind(',') + 1:])
-                    except Exception:
-                        event_id = None
+                    event = re_search(REGEX['timetable_event'], tr[1].find('a').get('href'))
+                    event_type, event_id = int(event.group(1)), int(event.group(2))
+
+                    name = re_search(REGEX['event_name_strip'], name).group(1)
 
                     if 'vacation-day' in tr[1].get('class'):
-                        answer.append(['vacation', (start_daytime, end_daytime), name, event_id])
+                        answer.append(['vacation', (start_daytime, end_daytime), name, event_type, event_id])
 
-                    elif 'school-event' in tr[1].get('class'):
-                        answer.append(['event', (start_daytime, end_daytime), name, event_id])
+                    else:
+                        answer.append(['event', (start_daytime, end_daytime), name, event_type, event_id])
 
                 else:
-                    if name.startswith('Урок:'):
-                        name = name[5:].strip()
+                    name = re_search(REGEX['event_name_strip'], name).group(1)
                     answer.append(['lesson', (start_daytime, end_daytime), name])
         else:
             answer = None
@@ -404,16 +404,14 @@ class NetschoolUser:
             lesson = lesson.find_all('td')
             start_index = 0 if len(lesson) == 5 else 1
 
-            info_link = lesson[start_index + 2].find('a').get('href')
-
-            AID, CID, TP = map(int, info_link[info_link.find('(') + 1:info_link.rfind(')')].split(','))
+            link_info = re_search(REGEX['lesson_link'], lesson[start_index + 2].find('a').get('href'))
 
             params = {
                 'AT': self.at,
                 # 'VER': self.ver,
-                'AID': AID,
-                'CID': CID,
-                'TP': TP
+                'AID': int(link_info.group(1)),
+                'CID': int(link_info.group(2)),
+                'TP': int(link_info.group(3))
             }
 
             r = self.session.post('http://netschool.school.ioffe.ru/asp/ajax/Assignments/GetAssignmentInfo.asp', data=params).json()
@@ -428,13 +426,14 @@ class NetschoolUser:
                     table = {}
                     for tr in trs:
                         if tr.find('td').find('span', class_='AttachmentSpan') is not None:
-                            link = tr.find('td').find('a').get('href')
-                            link, attachment_id = link[link.find('(') + 1:link.rfind(')') - 1].split(',')
-                            link = link[link.find("'") + 1:link.rfind("'")]
+                            link_info = re_search(REGEX['attachment'], tr.find('td').find('a').get('href'))
+
+                            link, attachment_id = link_info.group(1), int(link_info.group(2))
+
                             if link.startswith('/') or link.startswith('\\'):
                                 link = 'http://netschool.school.ioffe.ru' + link
 
-                            table[tr.find('th').text.strip()] = [link, int(attachment_id)]
+                            table[tr.find('th').text.strip()] = [link, attachment_id]
                         else:
                             table[tr.find('th').text.strip()] = tr.find('td').text.strip()
 
@@ -485,6 +484,28 @@ class NetschoolUser:
         if get_class:
             return _class, answer
         return answer
+
+    # def get_activities(self, date=None):
+    #     if date is None:
+    #         date = datetime.datetime.today().date()
+    #     date = (date - timedelta(date.weekday())).strftime('%d.%m.%y')
+    #     params = {
+    #         'AT': self.at,
+    #         'VER': self.ver,
+    #         # 'Relay': '-1',
+    #         "PCLID_IUP": "137_0",
+    #         'DATE': date
+    #     }
+
+    #     r = self.session.post('http://netschool.school.ioffe.ru/asp/Calendar/WeekViewClassesS.asp', data=params)
+
+    #     r = self.handle_security_warning(r)
+
+    #     soup = BeautifulSoup(r.text, 'lxml')
+    #     self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
+    #     self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
+
+    #     print(soup.find('div', class_='content').find('table').find_all('tr')[1:])
 
     # def getEvent(self, event_id, event_type):
     #     event_type = {
@@ -550,10 +571,10 @@ def main(user_login, user_password):  # For development
         # print("get_weekly_timetable():")
         # print(nts.get_weekly_timetable(get_class=True))
         # print(nts.get_weekly_timetable(datetime.date(year=2020, month=11, day=9), get_class=True))
-        # print("get_activities():")
-        # print(nts.get_activities())
         # print("get_diary():")
         # print(nts.get_diary(get_class=True))
+        # print("get_activities():")
+        # print(nts.get_activities())
     except Exception:
         print(format_exc())
 
