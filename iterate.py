@@ -1,4 +1,4 @@
-from MySQL.MySQL import MySQL
+from MySQL import MySQL
 from datetime import datetime
 
 from NetSchool import NetSchoolUser

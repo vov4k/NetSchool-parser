@@ -7,7 +7,6 @@ from bs4 import BeautifulSoup
 from hashlib import md5
 from time import sleep
 import datetime
-# from urllib.parse import urlparse
 
 from traceback import format_exc  # for debugging
 
@@ -164,7 +163,7 @@ class NetSchoolUser:
         r = self.session.post(url, data=params)
 
         if r.status_code == 200:
-            filepath = mkpath(self.download_path, os_split(url)[1])
+            filepath = mkpath(self.download_path, str(attachment_id) + '.' + os_split(url)[1])
             with open(filepath, 'wb') as file:
                 file.write(r.content)
             return filepath
@@ -347,7 +346,6 @@ class NetSchoolUser:
         params = {
             'AT': self.at,
             'VER': self.ver,
-            # 'Relay': '-1',
             'DATE': date.strftime('%d.%m.%y')
         }
 
@@ -382,7 +380,6 @@ class NetSchoolUser:
         params = {
             'AT': self.at,
             'VER': self.ver,
-            # 'Relay': '-1',
             'DATE': date.strftime('%d.%m.%y')
         }
 
@@ -400,7 +397,7 @@ class NetSchoolUser:
 
         answer = {date + timedelta(days=i): [] for i in range(7)}
 
-        def pasre_lesson(lesson):
+        def parse_lesson(lesson):
             lesson = lesson.find_all('td')
             start_index = 0 if len(lesson) == 5 else 1
 
@@ -433,18 +430,24 @@ class NetSchoolUser:
                             if link.startswith('/') or link.startswith('\\'):
                                 link = 'http://netschool.school.ioffe.ru' + link
 
-                            table[tr.find('th').text.strip()] = [link, attachment_id]
+                            table[tr.find('th').text.strip()] = upload_file(self.download_attachment(link, attachment_id))
                         else:
                             table[tr.find('th').text.strip()] = tr.find('td').text.strip()
 
                 info = [title, table]
+
+            mark = lesson[start_index + 4].text.strip()
+            try:
+                mark = int(mark)
+            except ValueError:
+                pass
 
             result = [
                 lesson[start_index].text.strip(),
                 lesson[start_index + 1].text.strip(),
                 lesson[start_index + 2].find('a').text.strip(),
                 int(lesson[start_index + 3].text),
-                lesson[start_index + 4].text.strip(),
+                mark,
                 info
             ]
 
@@ -465,20 +468,14 @@ class NetSchoolUser:
                     tr_index += 1
                 continue
 
-            answer[cur_date].append(pasre_lesson(soup[tr_index]))
+            answer[cur_date].append(parse_lesson(soup[tr_index]))
 
             tr_index += 1
             while tr_index < len(soup) and len(soup[tr_index].find_all('td')) < 6:
                 if len(soup[tr_index].find_all('td')) == 5:
-                    answer[cur_date].append(pasre_lesson(soup[tr_index]))
+                    answer[cur_date].append(parse_lesson(soup[tr_index]))
 
                 tr_index += 1
-
-            for lesson in answer[cur_date]:
-                try:
-                    lesson[4] = int(lesson[4])
-                except ValueError:
-                    pass
 
         sleep(self.sleep_time)
         if get_class:
@@ -492,7 +489,6 @@ class NetSchoolUser:
     #     params = {
     #         'AT': self.at,
     #         'VER': self.ver,
-    #         # 'Relay': '-1',
     #         "PCLID_IUP": "137_0",
     #         'DATE': date
     #     }
