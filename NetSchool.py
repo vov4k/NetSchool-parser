@@ -205,21 +205,19 @@ class NetSchoolUser:
 
                 if 'AttachmentSpan' in fieldset_content.get('class') and fieldset_content.find('a').has_attr('href'):
                     fieldset_content = re_search(REGEX["attachment"], fieldset_content.find('a').get('href'))
+
+                    link, attachment_id = fieldset_content.group(1), fieldset_content.group(2)
+                    if link.startswith('/') or link.startswith('\\'):
+                        link = 'http://netschool.school.ioffe.ru' + link
+
                     try:
-                        link, attachment_id = fieldset_content.group(1), fieldset_content.group(2)
-                        if link.startswith('/') or link.startswith('\\'):
-                            link = 'http://netschool.school.ioffe.ru' + link
-
                         new_link = upload_file(self.download_attachment(link, attachment_id))
-
-                        if new_link is None:
-                            new_link = link
-
+                        assert new_link is not None
                         fieldset.replace_with(new_link)
 
                     except Exception as e:
                         print("Exception in file upload:", e)
-                        fieldset.replace_with(fieldset_content)
+                        fieldset.replace_with(link)
 
             links = content.find_all('a')
             for link in links:
@@ -430,7 +428,16 @@ class NetSchoolUser:
                             if link.startswith('/') or link.startswith('\\'):
                                 link = 'http://netschool.school.ioffe.ru' + link
 
-                            table[tr.find('th').text.strip()] = upload_file(self.download_attachment(link, attachment_id))
+                            try:
+                                new_link = upload_file(self.download_attachment(link, attachment_id))
+                                assert new_link is not None
+
+                                table[tr.find('th').text.strip()] = new_link
+
+                            except Exception as e:
+                                print("Exception in file upload:", e)
+                                table[tr.find('th').text.strip()] = link
+
                         else:
                             table[tr.find('th').text.strip()] = tr.find('td').text.strip()
 
