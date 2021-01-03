@@ -145,8 +145,8 @@ class NetSchoolUser:
                 'LoginType': soup.find('input', {'name': 'LoginType'}).get('value').strip(),
                 'AT': self.at,
                 'VER': self.ver,
-                'TabItem': soup.find('input', {'name': 'TabItem'}).get('value').strip(),
-                'MenuItem': soup.find('input', {'name': 'MenuItem'}).get('value').strip()
+                'TabItem': soup.find('input', {'name': 'TabItem'}).get('value').strip() if soup.find('input', {'name': 'TabItem'}) is not None else None,
+                'MenuItem': soup.find('input', {'name': 'MenuItem'}).get('value').strip() if soup.find('input', {'name': 'MenuItem'}) is not None else None
             }
 
             sleep(self.sleep_time)
@@ -321,14 +321,14 @@ class NetSchoolUser:
                     name = re_search(REGEX['event_name_strip'], name).group(1)
 
                     if 'vacation-day' in tr[1].get('class'):
-                        answer.append(['vacation', (start_daytime, end_daytime), name, event_type, event_id])
+                        answer.append(['vacation', [start_daytime, end_daytime], name, event_type, event_id])
 
                     else:
-                        answer.append(['event', (start_daytime, end_daytime), name, event_type, event_id])
+                        answer.append(['event', [start_daytime, end_daytime], name, event_type, event_id])
 
                 else:
                     name = re_search(REGEX['event_name_strip'], name).group(1)
-                    answer.append(['lesson', (start_daytime, end_daytime), name])
+                    answer.append(['lesson', [start_daytime, end_daytime], name])
         else:
             answer = None
 

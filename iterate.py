@@ -1,9 +1,23 @@
 from MySQL import MySQL
-from datetime import datetime
+import datetime
+
+from json import dumps
 
 from NetSchool import NetSchoolUser
 
+from traceback import format_exc
+
 DOCPATH = 'doctmp'
+
+
+def every_school_year_day(year=None):
+    if year is None:
+        year = datetime.datetime.today().year
+        if datetime.datetime.today().month < 9:
+            year -= 1
+
+    for i in range((datetime.date(year + 1, 6, 1) - datetime.date(year, 9, 1)).days):
+        yield datetime.date(year, 9, 1) + datetime.timedelta(days=i)
 
 
 def infinite():
@@ -29,7 +43,7 @@ def onetime():
 
         nts = NetSchoolUser(person["username"], person["password"], DOCPATH)
 
-        cur_daytime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cur_daytime = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         try:
 
@@ -46,7 +60,31 @@ def onetime():
 
                         got_announcements = True
                     except Exception:
-                        pass
+                        print(format_exc())
+
+                try:
+
+                    timetable = {}
+                    for day in every_school_year_day():
+                        print("Getting timetable for day {}...".format(day))
+                        try:
+                            cur_timetable = nts.get_daily_timetable(date=day)
+                            if cur_timetable is not None:
+                                for item in cur_timetable:
+                                    item[1][0] = item[1][0].strftime("%Y-%m-%d %H:%M:%S")
+                                    item[1][1] = item[1][1].strftime("%Y-%m-%d %H:%M:%S")
+
+                            timetable[day.strftime("%Y-%m-%d")] = cur_timetable
+
+                        except Exception:
+                            print(format_exc())
+                            timetable[day.strftime("%Y-%m-%d")] = None
+
+                    mysql.query("UPDATE `users` SET `timetable` = %s WHERE `id` = %s", (dumps(timetable, ensure_ascii=False), person["id"]))
+
+                except Exception:
+                    print(format_exc())
+
             else:
                 print("Login failed")
 
@@ -56,9 +94,11 @@ def onetime():
             mysql.query("UPDATE `users` SET `last_update` = %s WHERE `id` = %s", (cur_daytime, person["id"]))
 
         except Exception:
-            pass
+            print(format_exc())
 
         del nts
+
+        # break
 
     for request in announcements_sql + ["UNLOCK TABLES;"]:
         mysql.query(request)
