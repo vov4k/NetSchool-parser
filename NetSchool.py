@@ -257,9 +257,10 @@ class NetSchoolUser:
     def get_daily_timetable(self, date=None, get_class=False):
         if date is None:
             date = datetime.datetime.today().date()
+        today = datetime.datetime.today().date()
 
-        school_year = datetime.datetime.today().date().year
-        if datetime.datetime.today().date().month < 9:
+        school_year = today.year
+        if today.month < 9:
             school_year -= 1
 
         params = {
@@ -268,7 +269,6 @@ class NetSchoolUser:
             'DATE': date.strftime('%d.%m.%y')
         }
         r = self.session.post('http://netschool.school.ioffe.ru/asp/Calendar/DayViewS.asp', data=params)
-
         r = self.handle_security_warning(r)
 
         soup = BeautifulSoup(r.text, 'lxml')
@@ -277,33 +277,35 @@ class NetSchoolUser:
 
         soup = soup.find('div', class_='content')
 
-        _class = soup.find('input', {'name': 'PCLID_IUP_label'}).get('value').strip()
+        if get_class:
+            _class = soup.find('input', {'name': 'PCLID_IUP_label'}).get('value').strip()
 
         if soup.find('div', 'alert-info') is None:
             answer = []
-            for tr in soup.find('table').find_all('tr')[1:]:
-                tr = tr.find_all('td')
-                start_daytime, end_daytime = map(str.strip, tr[0].text.strip().replace('\xa0', ' ').split('-'))
-                name = tr[1].text.strip().replace('\xa0', ' ')
+            for tds in (tr.find_all('td') for tr in soup.find('table').find_all('tr')[1:]):
+
+                start_daytime, end_daytime = map(str.strip, tds[0].text.replace('\xa0', ' ').strip().split('-'))
+                name = tds[1].text.replace('\xa0', ' ').strip()
 
                 try:
                     start_daytime = datetime.datetime.combine(date, datetime.datetime.strptime(start_daytime, "%H:%M").time())
                     end_daytime = datetime.datetime.combine(date, datetime.datetime.strptime(end_daytime, "%H:%M").time())
+
                 except ValueError:
                     start_date, start_time = start_daytime.split(' ')
                     end_date, end_time = end_daytime.split(' ')
 
                     start_day, start_month = map(int, start_date.split('.'))
-                    if start_month >= 9:
-                        start_date = datetime.date(year=school_year, month=start_month, day=start_day)
-                    else:
+                    if start_month < 9:
                         start_date = datetime.date(year=school_year + 1, month=start_month, day=start_day)
+                    else:
+                        start_date = datetime.date(year=school_year, month=start_month, day=start_day)
 
                     end_day, end_month = map(int, end_date.split('.'))
-                    if end_month >= 9:
-                        end_date = datetime.date(year=school_year, month=end_month, day=end_day)
-                    else:
+                    if end_month < 9:
                         end_date = datetime.date(year=school_year + 1, month=end_month, day=end_day)
+                    else:
+                        end_date = datetime.date(year=school_year, month=end_month, day=end_day)
 
                     start_daytime = datetime.datetime.combine(
                         start_date,
@@ -314,20 +316,17 @@ class NetSchoolUser:
                         datetime.datetime.strptime(end_time, "%H:%M").time()
                     )
 
-                if tr[1].get('class') is not None:
-                    event = re_search(REGEX['timetable_event'], tr[1].find('a').get('href'))
-                    event_type, event_id = int(event.group(1)), int(event.group(2))
+                name = re_search(REGEX['event_name_strip'], name).group(1)
 
-                    name = re_search(REGEX['event_name_strip'], name).group(1)
+                if tds[1].get('class') is not None:
+                    event_type, event_id = map(int, re_search(REGEX['timetable_event'], tds[1].find('a').get('href')).groups())
 
-                    if 'vacation-day' in tr[1].get('class'):
+                    if 'vacation-day' in tds[1].get('class'):
                         answer.append(['vacation', [start_daytime, end_daytime], name, event_type, event_id])
-
                     else:
                         answer.append(['event', [start_daytime, end_daytime], name, event_type, event_id])
 
                 else:
-                    name = re_search(REGEX['event_name_strip'], name).group(1)
                     answer.append(['lesson', [start_daytime, end_daytime], name])
         else:
             answer = None
@@ -357,7 +356,8 @@ class NetSchoolUser:
 
         soup = soup.find('div', class_='content')
 
-        _class = soup.find('input', {'name': 'PCLID_IUP_label'}).get('value').strip()
+        if get_class:
+            _class = soup.find('input', {'name': 'PCLID_IUP_label'}).get('value').strip()
 
         answer = []
         for day in soup.find('table').find_all('tr')[1:]:
@@ -391,7 +391,8 @@ class NetSchoolUser:
 
         soup = soup.find('div', class_='content')
 
-        _class = soup.find('input', {'name': 'PCLID_IUP_label'}).get('value').strip()
+        if get_class:
+            _class = soup.find('input', {'name': 'PCLID_IUP_label'}).get('value').strip()
 
         answer = {date + timedelta(days=i): [] for i in range(7)}
 
