@@ -22,7 +22,10 @@ def every_school_year_day(year=None):
 
 def infinite():
     while True:
-        onetime()
+        try:
+            onetime()
+        except Exception:
+            print(format_exc())
 
 
 def onetime():
