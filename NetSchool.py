@@ -65,6 +65,9 @@ class NetSchoolUser:
 
         self.session = Session()
 
+    def __del__(self):
+        self.logout()
+
     def login(self):
         # netschool.school.ioffe.ru
 
@@ -117,7 +120,6 @@ class NetSchoolUser:
     def logout(self):
         self.session.post('http://netschool.school.ioffe.ru/asp/logout.asp', data={'AT': self.at, 'VER': self.ver})
         sleep(self.sleep_time)
-        del self
 
     def handle_security_warning(self, r):
         soup = BeautifulSoup(r.text, 'lxml').find('form', {'action': '/asp/SecurityWarning.asp'})
@@ -577,14 +579,14 @@ def main(user_login, user_password):  # For development
         pass
         # print("get_announcements():")
         # print(nts.get_announcements(get_name=True))
-        print("get_daily_timetable():")
-        print(nts.get_daily_timetable(get_name=True))
+        # print("get_daily_timetable():")
+        # print(nts.get_daily_timetable(get_name=True))
         # print(nts.get_daily_timetable(datetime.date(year=2021, month=1, day=1), get_class=True))
         # print(nts.get_daily_timetable(datetime.date(year=2020, month=11, day=25), get_class=True))
         # print(nts.get_daily_timetable(datetime.date(year=2020, month=6, day=1), get_class=True))  # holidays
-        # print("get_weekly_timetable():")
-        # print(nts.get_weekly_timetable(get_class=True))
-        # print(nts.get_weekly_timetable(datetime.date(year=2020, month=11, day=9), get_class=True))
+        print("get_weekly_timetable():")
+        print(nts.get_weekly_timetable(get_class=True))
+        print(nts.get_weekly_timetable(datetime.date(year=2020, month=11, day=9), get_class=True))
         # print("get_diary():")
         # print(nts.get_diary(get_class=True))
         # print("get_activities():")
