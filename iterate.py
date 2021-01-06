@@ -46,12 +46,14 @@ def onetime():
 
         nts = NetSchoolUser(person["username"], person["password"], DOCPATH)
 
-        cur_daytime = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        status = 0
 
         try:
 
             if nts.login():
                 print("Login success")
+                status = 1
+
                 if not got_announcements:
                     try:
                         announcements = nts.get_announcements()
@@ -94,7 +96,14 @@ def onetime():
             nts.logout()
             print("Logout\n")
 
-            mysql.query("UPDATE `users` SET `last_update` = %s WHERE `id` = %s", (cur_daytime, person["id"]))
+            if status == 1:
+                mysql.query("UPDATE `users` SET `last_update` = %s WHERE `id` = %s", (
+                    datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    person["id"]
+                ))
+
+            else:
+                mysql.query("DELETE FROM `users` WHERE `id` = %s", (person["id"],))
 
         except Exception:
             print(format_exc())
