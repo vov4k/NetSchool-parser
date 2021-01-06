@@ -46,6 +46,7 @@ def onetime():
 
         nts = NetSchoolUser(person["username"], person["password"], DOCPATH)
 
+        name = None
         status = 0
 
         try:
@@ -73,7 +74,11 @@ def onetime():
                     for day in every_school_year_day():
                         print("Getting timetable for day {}...".format(day))
                         try:
-                            cur_timetable = nts.get_daily_timetable(date=day)
+                            if name is None:
+                                name, cur_timetable = nts.get_daily_timetable(date=day, get_name=True)
+                            else:
+                                cur_timetable = nts.get_daily_timetable(date=day)
+
                             if cur_timetable is not None:
                                 for item in cur_timetable:
                                     item[1][0] = item[1][0].strftime("%Y-%m-%d %H:%M:%S")
@@ -96,8 +101,12 @@ def onetime():
             nts.logout()
             print("Logout\n")
 
+            if name is not None:
+                last_name, first_name = map(str.strip, name.split())
+
             if status == 1:
-                mysql.query("UPDATE `users` SET `last_update` = %s WHERE `id` = %s", (
+                mysql.query("UPDATE `users` SET `first_name` = %s, `last_name` = %s, `last_update` = %s WHERE `id` = %s", (
+                    first_name, last_name,
                     datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     person["id"]
                 ))

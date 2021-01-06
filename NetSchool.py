@@ -170,7 +170,7 @@ class NetSchoolUser:
 
         return None
 
-    def get_announcements(self):
+    def get_announcements(self, get_name=False):
         params = {
             'AT': self.at,
             'VER': self.ver
@@ -182,6 +182,9 @@ class NetSchoolUser:
         soup = BeautifulSoup(r.text, 'lxml')
         self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
         self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
+
+        if get_name:
+            _name = soup.find('div', class_='header').find('a', {'href': 'JavaScript:openPersonalSettings()'}).text.strip()
 
         announcements = soup.find('div', class_='content').find_all('div', class_='advertisement')
         answer = []
@@ -239,6 +242,8 @@ class NetSchoolUser:
             ])
 
         sleep(self.sleep_time)
+        if get_name:
+            return _name, answer
         return answer
 
     # def get_file(self, url, attachment_id):
@@ -254,7 +259,7 @@ class NetSchoolUser:
     #     #     self.cookies.update(getCookies(r.headers['set-Cookie']))
     #     return r.content
 
-    def get_daily_timetable(self, date=None, get_class=False):
+    def get_daily_timetable(self, date=None, get_class=False, get_name=False):
         if date is None:
             date = datetime.datetime.today().date()
         today = datetime.datetime.today().date()
@@ -274,6 +279,9 @@ class NetSchoolUser:
         soup = BeautifulSoup(r.text, 'lxml')
         self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
         self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
+
+        if get_name:
+            _name = soup.find('div', class_='header').find('a', {'href': 'JavaScript:openPersonalSettings()'}).text.strip()
 
         soup = soup.find('div', class_='content')
 
@@ -334,6 +342,8 @@ class NetSchoolUser:
         sleep(self.sleep_time)
         if get_class:
             return _class, answer
+        elif get_name:
+            return _name, answer
         return answer
 
     def get_weekly_timetable(self, date=None, get_class=False):
@@ -566,9 +576,9 @@ def main(user_login, user_password):  # For development
     try:
         pass
         # print("get_announcements():")
-        # print(nts.get_announcements())
-        # print("get_daily_timetable():")
-        # print(nts.get_daily_timetable(get_class=True))
+        # print(nts.get_announcements(get_name=True))
+        print("get_daily_timetable():")
+        print(nts.get_daily_timetable(get_name=True))
         # print(nts.get_daily_timetable(datetime.date(year=2021, month=1, day=1), get_class=True))
         # print(nts.get_daily_timetable(datetime.date(year=2020, month=11, day=25), get_class=True))
         # print(nts.get_daily_timetable(datetime.date(year=2020, month=6, day=1), get_class=True))  # holidays
