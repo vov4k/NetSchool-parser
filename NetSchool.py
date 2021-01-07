@@ -348,10 +348,10 @@ class NetSchoolUser:
             return _name, answer
         return answer
 
-    def get_weekly_timetable(self, date=None, get_class=False):
+    def get_weekly_timetable(self, date=None, get_class=False, get_name=False):
         if date is None:
             date = datetime.datetime.today().date()
-        date = date - timedelta(date.weekday())
+        date = date - timedelta(days=date.weekday())
         params = {
             'AT': self.at,
             'VER': self.ver,
@@ -366,6 +366,9 @@ class NetSchoolUser:
         self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
         self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
 
+        if get_name:
+            _name = soup.find('div', class_='header').find('a', {'href': 'JavaScript:openPersonalSettings()'}).text.strip()
+
         soup = soup.find('div', class_='content')
 
         if get_class:
@@ -376,17 +379,19 @@ class NetSchoolUser:
             lessons = [lesson.replace('\xa0', ' ').strip() for lesson in list(day.find_all('td')[1].descendants)[::2]]
             answer.append([lesson if lesson != '-' else None for lesson in lessons])
 
-        answer += [None] * (len(answer) - 7)
+        answer += [None] * (7 - len(answer))
 
         sleep(self.sleep_time)
         if get_class:
             return _class, answer
+        elif get_name:
+            return _name, answer
         return answer
 
     def get_diary(self, date=None, get_class=False):
         if date is None:
             date = datetime.datetime.today().date()
-        date = date - timedelta(date.weekday())
+        date = date - timedelta(days=date.weekday())
         params = {
             'AT': self.at,
             'VER': self.ver,
@@ -505,7 +510,7 @@ class NetSchoolUser:
     # def get_activities(self, date=None):
     #     if date is None:
     #         date = datetime.datetime.today().date()
-    #     date = (date - timedelta(date.weekday())).strftime('%d.%m.%y')
+    #     date = (date - timedelta(days=date.weekday())).strftime('%d.%m.%y')
     #     params = {
     #         'AT': self.at,
     #         'VER': self.ver,
@@ -584,9 +589,9 @@ def main(user_login, user_password):  # For development
         # print(nts.get_daily_timetable(datetime.date(year=2021, month=1, day=1), get_class=True))
         # print(nts.get_daily_timetable(datetime.date(year=2020, month=11, day=25), get_class=True))
         # print(nts.get_daily_timetable(datetime.date(year=2020, month=6, day=1), get_class=True))  # holidays
-        print("get_weekly_timetable():")
-        print(nts.get_weekly_timetable(get_class=True))
-        print(nts.get_weekly_timetable(datetime.date(year=2020, month=11, day=9), get_class=True))
+        # print("get_weekly_timetable():")
+        # print(nts.get_weekly_timetable())
+        # print(nts.get_weekly_timetable(datetime.date(year=2020, month=11, day=9)))
         # print("get_diary():")
         # print(nts.get_diary(get_class=True))
         # print("get_activities():")
