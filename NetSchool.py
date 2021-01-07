@@ -178,7 +178,7 @@ class NetSchoolUser:
             'VER': self.ver
         }
         r = self.session.post('http://netschool.school.ioffe.ru/asp/Announce/ViewAnnouncements.asp', data=params)
-
+        self.last_page = 'http://netschool.school.ioffe.ru/asp/Announce/ViewAnnouncements.asp'
         r = self.handle_security_warning(r)
 
         soup = BeautifulSoup(r.text, 'lxml')
@@ -275,7 +275,9 @@ class NetSchoolUser:
             'VER': self.ver,
             'DATE': date.strftime('%d.%m.%y')
         }
+
         r = self.session.post('http://netschool.school.ioffe.ru/asp/Calendar/DayViewS.asp', data=params)
+        self.last_page = 'http://netschool.school.ioffe.ru/asp/Calendar/DayViewS.asp'
         r = self.handle_security_warning(r)
 
         soup = BeautifulSoup(r.text, 'lxml')
@@ -359,7 +361,7 @@ class NetSchoolUser:
         }
 
         r = self.session.post('http://netschool.school.ioffe.ru/asp/Calendar/WeekViewTimeS.asp', data=params)
-
+        self.last_page = 'http://netschool.school.ioffe.ru/asp/Calendar/WeekViewTimeS.asp'
         r = self.handle_security_warning(r)
 
         soup = BeautifulSoup(r.text, 'lxml')
@@ -399,7 +401,7 @@ class NetSchoolUser:
         }
 
         r = self.session.post('http://netschool.school.ioffe.ru/asp/Curriculum/Assignments.asp', data=params)
-
+        self.last_page = 'http://netschool.school.ioffe.ru/asp/Curriculum/Assignments.asp'
         r = self.handle_security_warning(r)
 
         soup = BeautifulSoup(r.text, 'lxml')
@@ -519,7 +521,7 @@ class NetSchoolUser:
     #     }
 
     #     r = self.session.post('http://netschool.school.ioffe.ru/asp/Calendar/WeekViewClassesS.asp', data=params)
-
+    #     self.last_page = 'http://netschool.school.ioffe.ru/asp/Calendar/WeekViewClassesS.asp'
     #     r = self.handle_security_warning(r)
 
     #     soup = BeautifulSoup(r.text, 'lxml')
@@ -549,8 +551,8 @@ class NetSchoolUser:
 
     #     r = req_post('http://netschool.school.ioffe.ru/asp/SetupSchool/Calendar/EditEvent.asp', data=params, headers=headers)
     #     self.last_page = 'http://netschool.school.ioffe.ru/asp/SetupSchool/Calendar/EditEvent.asp'
-
     #     r = self.handle_security_warning(r)
+
     #     if 'Set-Cookie' in r.headers:
     #         self.cookies.update(getCookies(r.headers['set-Cookie']))
     #     soup = BeautifulSoup(r.text, 'lxml')
