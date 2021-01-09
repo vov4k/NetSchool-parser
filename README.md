@@ -1,14 +1,12 @@
-## Installation
-
 #### Requirements
 
 Run `py -3 -m pip install -U -r requirements.txt` in command promt.
 
 Python modules:
-- [requests](https://pypi.org/project/requests/)
-- [beautifulsoup4](https://pypi.org/project/beautifulsoup4/)
-- [lxml](https://pypi.org/project/lxml/)
-- [PyMySQL](https://pypi.org/project/PyMySQL/) *with RSA*
+- [requests](https://pypi.org/project/requests)
+- [beautifulsoup4](https://pypi.org/project/beautifulsoup4)
+- [lxml](https://pypi.org/project/lxml)
+- [PyMySQL](https://pypi.org/project/PyMySQL) *with RSA*
 
 `py -3 -m pip install -U requests beautifulsoup4 lxml PyMySQL[rsa]`
 
@@ -29,4 +27,3 @@ Python modules:
 	"netschool_password": "{netschool_password}"
 }
 ```
-Или скопируйте из секретных источников...

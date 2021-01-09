@@ -109,7 +109,6 @@ class NetSchoolUser:
         self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
 
         sleep(self.sleep_time)
-
         return True
 
     def logout(self):
