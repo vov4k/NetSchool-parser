@@ -69,8 +69,6 @@ class NetSchoolUser:
         self.logout()
 
     def login(self):
-        # netschool.school.ioffe.ru
-
         r = self.session.get('http://netschool.school.ioffe.ru').text
         soup = BeautifulSoup(r, 'lxml').find('div', class_='info')
 
@@ -79,9 +77,6 @@ class NetSchoolUser:
         self.login_params['LT'] = soup.find('input', {'name': 'LT'}).get('value').strip()
 
         salt = re_search(REGEX['salt'], r).group(1)
-
-        # salt = r[r.find('salt') + 4: r.find('salt') + 20]
-        # salt = salt[salt.find('\'') + 1: salt.rfind('\'')].strip()
 
         self.login_params['PW2'] = md5((str(salt) + md5(self.password.encode()).hexdigest()).encode()).hexdigest()
         self.login_params['PW'] = self.login_params['PW2'][:len(self.password)]
@@ -172,7 +167,7 @@ class NetSchoolUser:
 
         return None
 
-    def get_announcements(self, get_name=False):
+    def get_announcements(self, get_name=False):  # -> [name, result]
         params = {
             'AT': self.at,
             'VER': self.ver
@@ -185,8 +180,8 @@ class NetSchoolUser:
         self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
         self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
 
-        if get_name:
-            _name = soup.find('div', class_='header').find('a', {'href': 'JavaScript:openPersonalSettings()'}).text.strip()
+        _name = soup.find('div', class_='header').find('a', {'href': 'JavaScript:openPersonalSettings()'}).text.strip() \
+            if get_name else None
 
         announcements = soup.find('div', class_='content').find_all('div', class_='advertisement')
         answer = []
@@ -244,24 +239,9 @@ class NetSchoolUser:
             ])
 
         sleep(self.sleep_time)
-        if get_name:
-            return _name, answer
-        return answer
+        return _name, answer
 
-    # def get_file(self, url, attachment_id):
-    #     params = {
-    #         'AT': self.at,
-    #         'VER': self.ver,
-    #         'attachmentId': str(attachment_id)
-    #     }
-    #     headers, params = self.getHeaders(self.last_page, params, self.cookies)
-    #     r = req_post(url, data=params, headers=headers)
-    #     self.last_page = url
-    #     # if 'Set-Cookie' in r.headers:
-    #     #     self.cookies.update(getCookies(r.headers['set-Cookie']))
-    #     return r.content
-
-    def get_daily_timetable(self, date=None, get_class=False, get_name=False):
+    def get_daily_timetable(self, date=None, get_class=False, get_name=False):  # -> [class, name, result]
         if date is None:
             date = datetime.datetime.today().date()
         today = datetime.datetime.today().date()
@@ -284,16 +264,17 @@ class NetSchoolUser:
         self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
         self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
 
-        if get_name:
-            _name = soup.find('div', class_='header').find('a', {'href': 'JavaScript:openPersonalSettings()'}).text.strip()
+        _name = soup.find('div', class_='header').find('a', {'href': 'JavaScript:openPersonalSettings()'}).text.strip() \
+            if get_name else None
 
         soup = soup.find('div', class_='content')
 
-        if get_class:
-            _class = soup.find('input', {'name': 'PCLID_IUP_label'}).get('value').strip()
+        _class = soup.find('input', {'name': 'PCLID_IUP_label'}).get('value').strip() \
+            if get_class else None
 
+        result = None
         if soup.find('div', 'alert-info') is None:
-            answer = []
+            result = []
             for tds in (tr.find_all('td') for tr in soup.find('table').find_all('tr')[1:]):
 
                 start_daytime, end_daytime = map(str.strip, tds[0].text.replace('\xa0', ' ').strip().split('-'))
@@ -334,23 +315,17 @@ class NetSchoolUser:
                     event_type, event_id = map(int, re_search(REGEX['timetable_event'], tds[1].find('a').get('href')).groups())
 
                     if 'vacation-day' in tds[1].get('class'):
-                        answer.append(['vacation', [start_daytime, end_daytime], name, event_type, event_id])
+                        result.append(['vacation', [start_daytime, end_daytime], name, event_type, event_id])
                     else:
-                        answer.append(['event', [start_daytime, end_daytime], name, event_type, event_id])
+                        result.append(['event', [start_daytime, end_daytime], name, event_type, event_id])
 
                 else:
-                    answer.append(['lesson', [start_daytime, end_daytime], name])
-        else:
-            answer = None
+                    result.append(['lesson', [start_daytime, end_daytime], name])
 
         sleep(self.sleep_time)
-        if get_class:
-            return _class, answer
-        elif get_name:
-            return _name, answer
-        return answer
+        return _class, _name, result
 
-    def get_weekly_timetable(self, date=None, get_class=False, get_name=False):
+    def get_weekly_timetable(self, date=None, get_class=False, get_name=False):  # -> [class, name, result]
         if date is None:
             date = datetime.datetime.today().date()
         date = date - timedelta(days=date.weekday())
@@ -368,29 +343,135 @@ class NetSchoolUser:
         self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
         self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
 
-        if get_name:
-            _name = soup.find('div', class_='header').find('a', {'href': 'JavaScript:openPersonalSettings()'}).text.strip()
+        _name = soup.find('div', class_='header').find('a', {'href': 'JavaScript:openPersonalSettings()'}).text.strip() \
+            if get_name else None
 
         soup = soup.find('div', class_='content')
 
-        if get_class:
-            _class = soup.find('input', {'name': 'PCLID_IUP_label'}).get('value').strip()
+        _class = soup.find('input', {'name': 'PCLID_IUP_label'}).get('value').strip() \
+            if get_class else None
 
-        answer = []
+        result = []
         for day in soup.find('table').find_all('tr')[1:]:
             lessons = [lesson.replace('\xa0', ' ').strip() for lesson in list(day.find_all('td')[1].descendants)[::2]]
-            answer.append([lesson if lesson != '-' else None for lesson in lessons])
+            result.append([lesson if lesson != '-' else None for lesson in lessons])
 
-        answer += [None] * (7 - len(answer))
+        result += [None] * (7 - len(result))
 
         sleep(self.sleep_time)
-        if get_class:
-            return _class, answer
-        elif get_name:
-            return _name, answer
-        return answer
+        return _class, _name, result
 
-    def get_diary(self, date=None, get_class=False):
+    def get_weekly_timetable_ext(self, date=None, get_class=False, get_name=False, get_events=False):
+        '''
+            Output: (class, name, result)
+
+            result:
+            {
+                "date": [
+                    {
+                        "type": "lesson",
+                        "name": lesson_name / None,
+                        "start": datetime,
+                        "end": datetime
+                    }
+                    or
+                    {
+                        "type": "vacation" / "event",
+                        "name": event_name
+                    }
+                ]
+            }
+        '''
+
+        if date is None:
+            date = datetime.datetime.today().date()
+        date = date - timedelta(days=date.weekday())
+        params = {
+            'AT': self.at,
+            'VER': self.ver,
+            'DATE': date.strftime('%d.%m.%y'),
+            'SCLID': -1
+        }
+
+        r = self.session.post('http://netschool.school.ioffe.ru/asp/Calendar/WeekViewClassesS.asp', data=params)
+        self.last_page = 'http://netschool.school.ioffe.ru/asp/Calendar/WeekViewClassesS.asp'
+        r = self.handle_security_warning(r)
+
+        soup = BeautifulSoup(r.text, 'lxml')
+        self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
+        self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
+
+        _name = soup.find('div', class_='header').find('a', {'href': 'JavaScript:openPersonalSettings()'}).text.strip() \
+            if get_name else None
+
+        soup = soup.find('div', class_='content')
+
+        _class = soup.find('input', {'name': 'PCLID_IUP_label'}).get('value').strip() \
+            if get_class else None
+
+        trs = soup.find('table', class_='schedule-table').find_all('tr')
+
+        result = {date + timedelta(days=i): [] for i in range(7)}
+
+        for tr in range(1, len(trs) - 1):
+
+            tds = trs[tr].find_all('td')
+
+            datetime_start, datetime_end = map(
+                lambda x: datetime.datetime.strptime(x.strip(), '%H:%M').time(),
+                tds[2].text.split('-')
+            )
+
+            for td in range(3, len(tds)):
+                cur_day = date + timedelta(days=td - 3)
+
+                lesson_name = tds[td].text.strip()
+
+                result[cur_day].append({
+                    "type": "lesson",
+                    "name": lesson_name if lesson_name else None,
+                    "start": datetime.datetime.combine(cur_day, datetime_start),
+                    "end": datetime.datetime.combine(cur_day, datetime_end)
+                })
+
+        tds = trs[-1].find_all('td')[1:]
+        for td in range(len(tds)):
+            cur_day = date + timedelta(days=td)
+
+            buff = []
+            event_type = None
+            event_id = None
+
+            for item in tds[td].contents:
+                if not isinstance(item, str):
+                    if item.name == 'br':
+                        if buff:
+
+                            if get_events:
+                                pass  # TODO
+                            else:
+                                result[cur_day].append({
+                                    "type": event_type,
+                                    "name": ' '.join(buff).strip()
+                                })
+                        buff = []
+                        continue
+
+                    elif item.name == 'a':
+                        event_type, event_id = map(int, re_search(REGEX['timetable_event'], tds[td].find('a').get('href')).groups())
+
+                        if 'vacation-day' in item.get('class'):
+                            event_type = 'vacation'
+                        else:
+                            event_type = 'event'
+
+                    item = item.text
+
+                buff.append(item.replace('\xa0', '').strip().strip('-'))
+
+        return _class, _name, result
+
+    def get_diary(self, date=None, get_class=False, get_name=False):  # -> [class, name, result]
         if date is None:
             date = datetime.datetime.today().date()
         date = date - timedelta(days=date.weekday())
@@ -408,10 +489,13 @@ class NetSchoolUser:
         self.at = soup.find('input', {'name': 'AT'}).get('value').strip()
         self.ver = soup.find('input', {'name': 'VER'}).get('value').strip()
 
+        _name = soup.find('div', class_='header').find('a', {'href': 'JavaScript:openPersonalSettings()'}).text.strip() \
+            if get_name else None
+
         soup = soup.find('div', class_='content')
 
-        if get_class:
-            _class = soup.find('input', {'name': 'PCLID_IUP_label'}).get('value').strip()
+        _class = soup.find('input', {'name': 'PCLID_IUP_label'}).get('value').strip() \
+            if get_class else None
 
         answer = {date + timedelta(days=i): [] for i in range(7)}
 
@@ -505,9 +589,7 @@ class NetSchoolUser:
                 tr_index += 1
 
         sleep(self.sleep_time)
-        if get_class:
-            return _class, answer
-        return answer
+        return _class, _name, answer
 
     # def get_activities(self, date=None):
     #     if date is None:
@@ -584,18 +666,27 @@ def main(user_login, user_password):  # For development
 
     try:
         pass
-        # print("get_announcements():")
-        # print(nts.get_announcements(get_name=True))
+
+        print("get_announcements():")
+        print(nts.get_announcements(get_name=True))
+
         # print("get_daily_timetable():")
         # print(nts.get_daily_timetable(get_name=True))
         # print(nts.get_daily_timetable(datetime.date(year=2021, month=1, day=1), get_class=True))
         # print(nts.get_daily_timetable(datetime.date(year=2020, month=11, day=25), get_class=True))
         # print(nts.get_daily_timetable(datetime.date(year=2020, month=6, day=1), get_class=True))  # holidays
+
         # print("get_weekly_timetable():")
         # print(nts.get_weekly_timetable())
         # print(nts.get_weekly_timetable(datetime.date(year=2020, month=11, day=9)))
+
+        # print("get_weekly_timetable_ext():")
+        # print(nts.get_weekly_timetable_ext(get_class=True, get_name=True))
+        # print(nts.get_weekly_timetable_ext(datetime.date(year=2020, month=11, day=9), get_class=True, get_name=True))
+
         # print("get_diary():")
         # print(nts.get_diary(get_class=True))
+
         # print("get_activities():")
         # print(nts.get_activities())
     except Exception:

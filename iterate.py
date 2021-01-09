@@ -57,51 +57,53 @@ def infinite():
             )
         except Exception:
             print(format_exc())
+        # break  # Debug
 
     del mysql
 
 
-def get_full_weekly_timetable(nts, day, get_name=False):
-    monday = day - datetime.timedelta(days=day.weekday())
+def get_full_weekly_timetable(nts, monday, get_name=False):
+    # monday -= datetime.timedelta(days=day.weekday())  # If monday is actually not monday
 
     result = {}
 
     try:
-        weekly_timetable = nts.get_weekly_timetable(date=monday)
+        _, _name, weekly_timetable = nts.get_weekly_timetable_ext(date=monday, get_name=get_name)
 
-        for day_index, day in enumerate(day_period(monday, monday + datetime.timedelta(days=7))):
-            if get_name:
-                name, daily_timetable = nts.get_daily_timetable(date=day, get_name=True)
-            else:
-                daily_timetable = nts.get_daily_timetable(date=day)
+        for day in weekly_timetable:
 
-            if weekly_timetable[day_index] is not None and daily_timetable is not None:
-                daily_timetable.sort(key=lambda item: 0 if item[0] == 'lesson' else 1 if item[0] == 'vacation' else 2)
+            weekly_timetable[day].sort(key=lambda item: 0 if item["type"] == "lesson" else 1 if item["type"] == "vacation" else 2)
 
-                for item in daily_timetable:
-                    item[1][0] = item[1][0].strftime("%Y-%m-%d %H:%M:%S")
-                    item[1][1] = item[1][1].strftime("%Y-%m-%d %H:%M:%S")
+            for item in weekly_timetable[day]:
+                if "start" in item:
+                    item["start"] = item["start"].strftime("%Y-%m-%d %H:%M:%S")
 
-                for i in range(len(weekly_timetable[day_index])):
-                    if weekly_timetable[day_index][i] is None:
-                        daily_timetable.insert(i, None)
+                if "end" in item:
+                    item["end"] = item["end"].strftime("%Y-%m-%d %H:%M:%S")
 
-                # Remove None at the end of lessons
-                for i in range(len(weekly_timetable[day_index]) - 1, -1, -1):
-                    if daily_timetable[i] is not None:
-                        break
-                    del daily_timetable[i]
+            # # Remove None at the end of lessons
+            # for i in range(len(weekly_timetable[day]) - 1, -1, -1):
+            #     if daily_timetable[i] is not None:
+            #         break
+            #     del daily_timetable[i]
 
-                result[day.strftime("%Y-%m-%d")] = daily_timetable
+            result[day.strftime("%Y-%m-%d")] = [
+                [
+                    item["type"],
+                    item["name"] if "name" in item else None,
+                    item["start"] if "start" in item else None,
+                    item["end"] if "end" in item else None
+                ]
+                for item in weekly_timetable[day]
+            ]
 
     except Exception:
         print(format_exc())
+
         for day in day_period(monday, monday + datetime.timedelta(days=7)):
             result[day.strftime("%Y-%m-%d")] = None
 
-    if get_name:
-        return name, result
-    return result
+    return _name, result
 
 
 def run_person(mysql, person):
@@ -124,16 +126,15 @@ def run_person(mysql, person):
 
             # Announcements:
             try:
-                announcements = nts.get_announcements()
+                name, announcements = nts.get_announcements(get_name=True)
                 print("Got announcements")
                 for author, title, date, text in announcements:
                     announcements_sql.append(
                         "INSERT INTO `announcements` (`author`, `title`, `date`, `text`) VALUES (\"{}\", \"{}\", \"{}\", \"{}\");".format(author, title, date, text)
                     )
 
-                for request in announcements_sql:
-                    mysql.query(request)
-                mysql.query("UNLOCK TABLES;")
+                announcements_sql.append("UNLOCK TABLES;")
+                mysql.query("".join(announcements_sql))
 
             except Exception:
                 print(format_exc())
@@ -155,7 +156,7 @@ def run_person(mysql, person):
                     if name is None:
                         name, weekly_timetable = get_full_weekly_timetable(nts, week_start, get_name=True)
                     else:
-                        weekly_timetable = get_full_weekly_timetable(nts, week_start, get_name=False)
+                        _, weekly_timetable = get_full_weekly_timetable(nts, week_start)
 
                     timetable.update(**weekly_timetable)
 

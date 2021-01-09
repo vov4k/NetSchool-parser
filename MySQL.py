@@ -1,5 +1,6 @@
 from json import load as json_load
 import pymysql.cursors
+from pymysql.constants import CLIENT
 
 
 class MySQL:
@@ -18,7 +19,8 @@ class MySQL:
                                           password=self.password,
                                           db=self.db,
                                           cursorclass=pymysql.cursors.DictCursor,
-                                          autocommit=True)
+                                          autocommit=True,
+                                          client_flag=CLIENT.MULTI_STATEMENTS)
 
     def query(self, sql, args=None):
         with self.connection.cursor() as cursor:
