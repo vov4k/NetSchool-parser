@@ -84,16 +84,18 @@ def get_full_weekly_timetable(nts, monday, get_name=False):
                 if "end" in item:
                     item["end"] = item["end"].strftime("%Y-%m-%d %H:%M:%S")
 
-            # # Remove None at the end of lessons
-            # for i in range(len(weekly_timetable[day]) - 1, -1, -1):
-            #     if daily_timetable[i] is not None:
-            #         break
-            #     del daily_timetable[i]
+            # Remove None at the end of lessons
+            i = len(weekly_timetable[day]) - 1
+            while i >= 0 and weekly_timetable[day][i]["type"] != "lesson":
+                i -= 1
+            while i >= 0 and weekly_timetable[day][i]["name"] is None:
+                del weekly_timetable[day][i]
+                i -= 1
 
             result[day.strftime("%Y-%m-%d")] = [
                 [
                     item["type"],
-                    item["name"] if "name" in item else None,
+                    item["name"],
                     item["start"] if "start" in item else None,
                     item["end"] if "end" in item else None
                 ]
