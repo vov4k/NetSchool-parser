@@ -1,13 +1,16 @@
 from MySQL import MySQL
-import datetime
 
+from traceback import format_exc
 from json import dumps
+from time import sleep
+import datetime
 
 from NetSchool import NetSchoolUser
 
-from traceback import format_exc
 
 DOCPATH = 'doctmp'
+
+MINUTES_5 = datetime.timedelta(minutes=5)
 
 
 def week_period(day_start, day_end):
@@ -108,10 +111,9 @@ def get_full_weekly_timetable(nts, monday, get_name=False):
 
 def run_person(mysql, person):
 
-    announcements_sql = [
-        "LOCK TABLES announcements WRITE;",
-        "TRUNCATE TABLE `announcements`;"
-    ]
+    if datetime.datetime.now() - person["last_update"] < MINUTES_5:
+        sleep(5)
+        return
 
     print("Running for person | {} {}...".format(person["first_name"], person["last_name"]))
 
@@ -126,6 +128,11 @@ def run_person(mysql, person):
 
             # Announcements:
             try:
+                announcements_sql = [
+                    "LOCK TABLES announcements WRITE;",
+                    "TRUNCATE TABLE `announcements`;"
+                ]
+
                 name, announcements = nts.get_announcements(get_name=True)
                 print("Got announcements")
                 for author, title, date, text in announcements:
