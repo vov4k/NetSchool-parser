@@ -75,6 +75,7 @@ def get_full_weekly_timetable(nts, monday, get_name=False):
 
         for day in weekly_timetable:
 
+            # Be careful not to ruin the lesson order
             weekly_timetable[day].sort(key=lambda item: 0 if item["type"] == "lesson" else 1 if item["type"] == "vacation" else 2)
 
             for item in weekly_timetable[day]:
@@ -113,7 +114,7 @@ def get_full_weekly_timetable(nts, monday, get_name=False):
 
 def run_person(mysql, person):
 
-    if datetime.datetime.now() - person["last_update"] < MINUTES_5:
+    if person["last_update"] is not None and datetime.datetime.now() - person["last_update"] < MINUTES_5:
         sleep(5)
         return
 
@@ -135,8 +136,9 @@ def run_person(mysql, person):
                     "TRUNCATE TABLE `announcements`;"
                 ]
 
+                print("Getting announcements...")
                 name, announcements = nts.get_announcements(get_name=True)
-                print("Got announcements")
+
                 for author, title, date, text in announcements:
                     announcements_sql.append(
                         "INSERT INTO `announcements` (`author`, `title`, `date`, `text`) VALUES (\"{}\", \"{}\", \"{}\", \"{}\");".format(author, title, date, text)
@@ -144,6 +146,8 @@ def run_person(mysql, person):
 
                 announcements_sql.append("UNLOCK TABLES;")
                 mysql.query("".join(announcements_sql))
+
+                print("Got announcements")
 
             except Exception:
                 print(format_exc())
