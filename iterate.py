@@ -131,21 +131,18 @@ def run_person(mysql, person):
 
             # Announcements:
             try:
-                announcements_sql = [
-                    "LOCK TABLES announcements WRITE;",
-                    "TRUNCATE TABLE `announcements`;"
-                ]
-
                 print("Getting announcements...")
                 name, announcements = nts.get_announcements(get_name=True)
 
+                mysql.query("LOCK TABLES announcements WRITE;TRUNCATE TABLE `announcements`;")
+
                 for author, title, date, text in announcements:
-                    announcements_sql.append(
-                        "INSERT INTO `announcements` (`author`, `title`, `date`, `text`) VALUES (\"{}\", \"{}\", \"{}\", \"{}\");".format(author, title, date, text)
+                    mysql.query(
+                        "INSERT INTO `announcements` (`author`, `title`, `date`, `text`) VALUES (%s, %s, %s, %s);",
+                        (author, title, date, text)
                     )
 
-                announcements_sql.append("UNLOCK TABLES;")
-                mysql.query("".join(announcements_sql))
+                mysql.query("UNLOCK TABLES;")
 
                 print("Got announcements")
 
