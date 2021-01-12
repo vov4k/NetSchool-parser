@@ -203,7 +203,8 @@ class NetSchoolUser:
                 fieldset_content = fieldset.find('div').find('span')
 
                 if 'AttachmentSpan' in fieldset_content.get('class') and fieldset_content.find('a').has_attr('href'):
-                    fieldset_content = re_search(REGEX["attachment"], fieldset_content.find('a').get('href'))
+                    link_obj = fieldset_content.find('a')
+                    fieldset_content = re_search(REGEX["attachment"], link_obj.get('href'))
 
                     link, attachment_id = fieldset_content.group(1), fieldset_content.group(2)
                     if link.startswith('/') or link.startswith('\\'):
@@ -212,22 +213,31 @@ class NetSchoolUser:
                     try:
                         new_link = upload_file(self.download_attachment(link, attachment_id))
                         assert new_link is not None
-                        fieldset.replace_with(new_link)
+
+                        link_obj.attrs['href'] = new_link
+                        link_obj.attrs['target'] = '_blank'
+                        if 'title' in link_obj.attrs:
+                            del link_obj.attrs['title']
+                        fieldset.replace_with(str(link_obj))
 
                     except Exception as e:
                         print("Exception in file upload:", e)
-                        fieldset.replace_with(link)
 
-            links = content.find_all('a')
-            for link in links:
-                if link.has_attr('title'):
-                    to_replace = link.get('title') + ': '
-                else:
-                    to_replace = ''
-                if link.has_attr('href'):
-                    to_replace += str(re_search(REGEX['link'], str(link.get('href')))[0])
-                    # answer_links.append(str(link.get('href')))
-                link.replace_with(to_replace)
+                        link_obj.attrs['href'] = link
+                        link_obj.attrs['target'] = '_blank'
+                        if 'title' in link_obj.attrs:
+                            del link_obj.attrs['title']
+                        fieldset.replace_with(str(link_obj))
+
+            for link_obj in content.find_all('a'):
+                if link_obj.has_attr('href'):
+                    to_replace = str(re_search(REGEX['link'], str(link_obj.get('href')))[0])
+
+                    link_obj.attrs["href"] = to_replace
+                    link_obj.attrs['target'] = '_blank'
+                    if 'title' in link_obj.attrs:
+                        del link_obj.attrs['title']
+                    link_obj.replace_with(str(link_obj))
 
             answer.append([
                 author,
