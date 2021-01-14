@@ -65,13 +65,13 @@ def infinite():
     del mysql
 
 
-def get_full_weekly_timetable(nts, monday, get_name=False):
+def get_full_weekly_timetable(nts, monday, get_class=False, get_name=False):
     # monday -= datetime.timedelta(days=day.weekday())  # If monday is actually not monday
 
     result = {}
 
     try:
-        _, _name, weekly_timetable = nts.get_weekly_timetable_ext(date=monday, get_name=get_name)
+        class_, name_, weekly_timetable = nts.get_weekly_timetable_ext(date=monday, get_class=get_class, get_name=get_name)
 
         for day in weekly_timetable:
 
@@ -109,7 +109,7 @@ def get_full_weekly_timetable(nts, monday, get_name=False):
         for day in day_period(monday, monday + datetime.timedelta(days=7)):
             result[day.strftime("%Y-%m-%d")] = None
 
-    return _name, result
+    return class_, name_, result
 
 
 def run_person(mysql, person):
@@ -123,6 +123,7 @@ def run_person(mysql, person):
     nts = NetSchoolUser(person["username"], person["password"], DOCPATH)
 
     name = None
+    class_ = None
 
     try:
 
@@ -163,10 +164,10 @@ def run_person(mysql, person):
                 for week_start in cur_period:
                     print("Getting timetable for week starting with {}...".format(week_start))
 
-                    if name is None:
-                        name, weekly_timetable = get_full_weekly_timetable(nts, week_start, get_name=True)
-                    else:
-                        _, weekly_timetable = get_full_weekly_timetable(nts, week_start)
+                    new_class, new_name, weekly_timetable = get_full_weekly_timetable(nts, week_start, get_class=(class_ is None), get_name=(name is None))
+
+                    name = new_name if name is None else name
+                    class_ = new_class if class_ is None else class_
 
                     timetable.update(**weekly_timetable)
 
@@ -181,6 +182,12 @@ def run_person(mysql, person):
 
                 mysql.query("UPDATE `users` SET `first_name` = %s, `last_name` = %s WHERE `id` = %s", (
                     first_name, last_name,
+                    person["id"]
+                ))
+
+            if class_ is not None:
+                mysql.query("UPDATE `users` SET `class` = %s WHERE `id` = %s", (
+                    class_,
                     person["id"]
                 ))
 
