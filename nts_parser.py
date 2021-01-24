@@ -390,6 +390,8 @@ class NetSchoolUser:
                     }
                 ]
             }
+
+            TODO: get date instead of iter
         '''
 
         if date is None:
@@ -459,7 +461,7 @@ class NetSchoolUser:
                     "end": datetime.datetime.combine(cur_day, datetime_end)
                 })
 
-        tds = trs[-1].find_all('td')[1:]
+        tds = trs[-1].find_all('td')
         for td in range(len(tds)):
             cur_day = date + timedelta(days=td)
 
@@ -708,6 +710,7 @@ def main(user_login, user_password):  # For development
         # print("get_weekly_timetable_ext():")
         # print(nts.get_weekly_timetable_ext(get_class=True, get_name=True))
         # print(nts.get_weekly_timetable_ext(datetime.date(year=2020, month=11, day=9), get_class=True, get_name=True))
+        # print(nts.get_weekly_timetable_ext(datetime.date(year=2021, month=2, day=1), get_class=True, get_name=True))
 
         # print("get_diary():")
         # print(nts.get_diary(get_class=True))
