@@ -7,3 +7,5 @@ __pycache__
 # Doc
 /doctmp/*
 !.gitkeep
+
+/.run_person.lock

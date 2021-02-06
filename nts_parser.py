@@ -498,7 +498,27 @@ class NetSchoolUser:
 
         return _class, _name, result
 
-    def get_diary(self, date=None, get_class=False, get_name=False):  # -> [class, name, result]
+    def get_diary(self, date=None, get_class=False, get_name=False, full=False):
+        '''
+            Output: (class, name, result)
+
+            result:
+            {
+                "date": [
+                    [
+                        lesson_name,
+                        task_type,
+                        task,
+                        mark_rate,
+                        mark (Optional[None]),
+                        ...
+                    ]
+                ]
+            }
+
+            TODO: Files not working
+        '''
+
         if date is None:
             date = datetime.datetime.today().date()
         date = date - timedelta(days=date.weekday())
@@ -530,55 +550,60 @@ class NetSchoolUser:
             lesson = lesson.find_all('td')
             start_index = 0 if len(lesson) == 5 else 1
 
-            link_info = re_search(REGEX['lesson_link'], lesson[start_index + 2].find('a').get('href'))
+            if full:
 
-            params = {
-                'AT': self.at,
-                # 'VER': self.ver,
-                'AID': int(link_info.group(1)),
-                'CID': int(link_info.group(2)),
-                'TP': int(link_info.group(3))
-            }
+                link_info = re_search(REGEX['lesson_link'], lesson[start_index + 2].find('a').get('href'))
 
-            r = self.session.post('http://netschool.school.ioffe.ru/asp/ajax/Assignments/GetAssignmentInfo.asp', data=params).json()
+                params = {
+                    'AT': self.at,
+                    # 'VER': self.ver,
+                    'AID': int(link_info.group(1)),
+                    'CID': int(link_info.group(2)),
+                    'TP': int(link_info.group(3))
+                }
 
-            if 'isError' in r and r['isError']:
-                info = None
-            else:
-                title = r['data']['strTitle'] if 'strTitle' in r['data'] else ""
-                table = r['data']['strTable'] if 'strTable' in r['data'] else ""
-                if table:
-                    trs = BeautifulSoup(table, 'lxml').find('table').find_all('tr')
-                    table = {}
-                    for tr in trs:
-                        if tr.find('td').find('span', class_='AttachmentSpan') is not None:
-                            link_info = re_search(REGEX['attachment'], tr.find('td').find('a').get('href'))
+                r = self.session.post('http://netschool.school.ioffe.ru/asp/ajax/Assignments/GetAssignmentInfo.asp', data=params).json()
 
-                            link, attachment_id = link_info.group(1), int(link_info.group(2))
+                if 'isError' in r and r['isError']:
+                    info = None
+                else:
+                    title = r['data']['strTitle'] if 'strTitle' in r['data'] else ""
+                    table = r['data']['strTable'] if 'strTable' in r['data'] else ""
+                    if table:
+                        trs = BeautifulSoup(table, 'lxml').find('table').find_all('tr')
+                        table = {}
+                        for tr in trs:
+                            if tr.find('td').find('span', class_='AttachmentSpan') is not None:
+                                link_info = re_search(REGEX['attachment'], tr.find('td').find('a').get('href'))
 
-                            if link.startswith('/') or link.startswith('\\'):
-                                link = 'http://netschool.school.ioffe.ru' + link
+                                link, attachment_id = link_info.group(1), int(link_info.group(2))
 
-                            try:
-                                new_link = upload_file(self.download_attachment(link, attachment_id))
-                                assert new_link is not None
+                                if link.startswith('/') or link.startswith('\\'):
+                                    link = 'http://netschool.school.ioffe.ru' + link
 
-                                table[tr.find('th').text.strip()] = new_link
+                                try:
+                                    new_link = upload_file(self.download_attachment(link, attachment_id))
+                                    assert new_link is not None
 
-                            except Exception as e:
-                                print("Exception in file upload:", e)
-                                table[tr.find('th').text.strip()] = link
+                                    table[tr.find('th').text.strip()] = new_link
 
-                        else:
-                            table[tr.find('th').text.strip()] = tr.find('td').text.strip()
+                                except Exception as e:
+                                    print("Exception in file upload:", e)
+                                    table[tr.find('th').text.strip()] = link
 
-                info = [title, table]
+                            else:
+                                table[tr.find('th').text.strip()] = tr.find('td').text.strip()
+
+                    info = [title, table]
 
             mark = lesson[start_index + 4].text.strip()
-            try:
-                mark = int(mark)
-            except ValueError:
-                pass
+            if mark == '-':
+                mark = None
+            else:
+                try:
+                    mark = int(mark)
+                except ValueError:
+                    pass
 
             result = [
                 lesson[start_index].text.strip(),
@@ -586,7 +611,7 @@ class NetSchoolUser:
                 lesson[start_index + 2].find('a').text.strip(),
                 int(lesson[start_index + 3].text),
                 mark,
-                info
+                info if full else None
             ]
 
             return result
