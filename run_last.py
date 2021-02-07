@@ -218,7 +218,7 @@ def run_person(mysql, person):
 
 def run_last():
     if os_exists(".run_person.lock"):
-        sleep(5)
+        # sleep(5)
         return
 
     with open(".run_person.lock", 'w'):

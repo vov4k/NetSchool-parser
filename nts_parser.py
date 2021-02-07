@@ -233,7 +233,7 @@ class NetSchoolUser:
                 if link_obj.has_attr('href'):
                     to_replace = str(re_search(REGEX['link'], str(link_obj.get('href')))[0])
 
-                    link_obj.attrs["href"] = to_replace
+                    link_obj.attrs['href'] = to_replace
                     link_obj.attrs['target'] = '_blank'
                     if 'title' in link_obj.attrs:
                         del link_obj.attrs['title']
@@ -511,7 +511,8 @@ class NetSchoolUser:
                         task,
                         mark_rate,
                         mark (Optional[None]),
-                        ...
+                        task_expired,
+                        task_info
                     ]
                 ]
             }
@@ -547,6 +548,8 @@ class NetSchoolUser:
         answer = {date + timedelta(days=i): [] for i in range(7)}
 
         def parse_lesson(lesson):
+            task_expired = lesson.get('bgcolor') != '#FFFFFF' if lesson.has_attr('bgcolor') else False
+
             lesson = lesson.find_all('td')
             start_index = 0 if len(lesson) == 5 else 1
 
@@ -611,6 +614,7 @@ class NetSchoolUser:
                 lesson[start_index + 2].find('a').text.strip(),
                 int(lesson[start_index + 3].text),
                 mark,
+                task_expired,
                 info if full else None
             ]
 
@@ -738,7 +742,7 @@ def main(user_login, user_password):  # For development
         # print(nts.get_weekly_timetable_ext(datetime.date(year=2021, month=2, day=1), get_class=True, get_name=True))
 
         # print("get_diary():")
-        # print(nts.get_diary(get_class=True))
+        # print(nts.get_diary(datetime.date(year=2021, month=1, day=18), get_class=True, get_name=True))
 
         # print("get_activities():")
         # print(nts.get_activities())
