@@ -63,6 +63,8 @@ class NetSchoolUser:
 
         self.at, self.ver = "", ""
 
+        self.empty_soup = BeautifulSoup('', 'lxml')
+
         self.session = Session()
 
     def __del__(self):
@@ -214,30 +216,21 @@ class NetSchoolUser:
                         new_link = upload_file(self.download_attachment(link, attachment_id))
                         assert new_link is not None
 
-                        link_obj.attrs['href'] = new_link
-                        link_obj.attrs['target'] = '_blank'
-                        if 'title' in link_obj.attrs:
-                            del link_obj.attrs['title']
-                        fieldset.replace_with(str(link_obj))
-
                     except Exception as e:
                         print("Exception in file upload:", e)
+                        new_link = link
 
-                        link_obj.attrs['href'] = link
-                        link_obj.attrs['target'] = '_blank'
-                        if 'title' in link_obj.attrs:
-                            del link_obj.attrs['title']
-                        fieldset.replace_with(str(link_obj))
+                    new_link_obj = self.empty_soup.new_tag('a', href=new_link, target='_blank')
+                    new_link_obj.string = link_obj.text
+                    fieldset.replace_with(str(new_link_obj))
 
             for link_obj in content.find_all('a'):
                 if link_obj.has_attr('href'):
-                    to_replace = str(re_search(REGEX['link'], str(link_obj.get('href')))[0])
+                    new_link = str(re_search(REGEX['link'], str(link_obj.get('href')))[0])
 
-                    link_obj.attrs['href'] = to_replace
-                    link_obj.attrs['target'] = '_blank'
-                    if 'title' in link_obj.attrs:
-                        del link_obj.attrs['title']
-                    link_obj.replace_with(str(link_obj))
+                    new_link_obj = self.empty_soup.new_tag('a', href=new_link, target='_blank')
+                    new_link_obj.string = link_obj.text
+                    link_obj.replace_with(str(new_link_obj))
 
             answer.append([
                 author,
@@ -567,17 +560,19 @@ class NetSchoolUser:
 
                 r = self.session.post('http://netschool.school.ioffe.ru/asp/ajax/Assignments/GetAssignmentInfo.asp', data=params).json()
 
-                if 'isError' in r and r['isError']:
-                    info = None
-                else:
+                info = None
+                if 'isError' not in r or not r['isError']:
                     title = r['data']['strTitle'] if 'strTitle' in r['data'] else ""
                     table = r['data']['strTable'] if 'strTable' in r['data'] else ""
+
                     if table:
-                        trs = BeautifulSoup(table, 'lxml').find('table').find_all('tr')
-                        table = {}
-                        for tr in trs:
-                            if tr.find('td').find('span', class_='AttachmentSpan') is not None:
-                                link_info = re_search(REGEX['attachment'], tr.find('td').find('a').get('href'))
+                        result_table = {}
+                        for tr in BeautifulSoup(table, 'lxml').find('table').find_all('tr'):
+                            for attachment_obj in tr.find('td').find_all('span', class_='AttachmentSpan'):
+
+                                link_obj = attachment_obj.find('a')
+
+                                link_info = re_search(REGEX['attachment'], link_obj.get('href'))
 
                                 link, attachment_id = link_info.group(1), int(link_info.group(2))
 
@@ -588,16 +583,17 @@ class NetSchoolUser:
                                     new_link = upload_file(self.download_attachment(link, attachment_id))
                                     assert new_link is not None
 
-                                    table[tr.find('th').text.strip()] = new_link
-
                                 except Exception as e:
                                     print("Exception in file upload:", e)
-                                    table[tr.find('th').text.strip()] = link
+                                    new_link = link
 
-                            else:
-                                table[tr.find('th').text.strip()] = tr.find('td').text.strip()
+                                new_link_obj = self.empty_soup.new_tag('a', href=new_link, target='_blank')
+                                new_link_obj.string = link_obj.text
+                                attachment_obj.replace_with(str(new_link_obj))
 
-                    info = [title, table]
+                            result_table[tr.find('th').text.strip()] = tr.find('td').text.strip()
+
+                    info = [title, result_table]
 
             mark = lesson[start_index + 4].text.strip()
             if mark == '-':
