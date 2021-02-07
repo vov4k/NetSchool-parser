@@ -742,7 +742,8 @@ def main(user_login, user_password):  # For development
         # print(nts.get_weekly_timetable_ext(datetime.date(year=2021, month=2, day=1), get_class=True, get_name=True))
 
         # print("get_diary():")
-        # print(nts.get_diary(datetime.date(year=2021, month=1, day=18), get_class=True, get_name=True))
+        # print(nts.get_diary(get_class=True, get_name=True, full=True))
+        # print(nts.get_diary(datetime.date(year=2021, month=1, day=18), get_class=True, get_name=True, full=True))
 
         # print("get_activities():")
         # print(nts.get_activities())

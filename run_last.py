@@ -170,7 +170,7 @@ def run_person(mysql, person):
                     for week_start in every_school_year_week():
                         print("Getting diary for week starting with {}...".format(week_start))
 
-                        new_class, new_name, weekly_diary = nts.get_diary(week_start, get_class=(class_ is None), get_name=(name is None))
+                        new_class, new_name, weekly_diary = nts.get_diary(week_start, get_class=(class_ is None), get_name=(name is None), full=True)
 
                         name = new_name if name is None else name
                         class_ = new_class if class_ is None else class_
