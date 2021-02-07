@@ -206,9 +206,8 @@ class NetSchoolUser:
 
                 if 'AttachmentSpan' in fieldset_content.get('class') and fieldset_content.find('a').has_attr('href'):
                     link_obj = fieldset_content.find('a')
-                    fieldset_content = re_search(REGEX["attachment"], link_obj.get('href'))
 
-                    link, attachment_id = fieldset_content.group(1), fieldset_content.group(2)
+                    link, attachment_id = re_search(REGEX['attachment'], link_obj.get('href')).groups()
                     if link.startswith('/') or link.startswith('\\'):
                         link = 'http://netschool.school.ioffe.ru' + link
 
@@ -226,9 +225,7 @@ class NetSchoolUser:
 
             for link_obj in content.find_all('a'):
                 if link_obj.has_attr('href'):
-                    new_link = str(re_search(REGEX['link'], str(link_obj.get('href')))[0])
-
-                    new_link_obj = self.empty_soup.new_tag('a', href=new_link, target='_blank')
+                    new_link_obj = self.empty_soup.new_tag('a', href=str(link_obj.get('href')).strip(), target='_blank')
                     new_link_obj.string = link_obj.text
                     link_obj.replace_with(str(new_link_obj))
 
@@ -237,7 +234,9 @@ class NetSchoolUser:
                 title.text,
                 date,
                 content.text.replace('Присоединенные файлы\n', 'Присоединенные файлы:')
-                .replace('\r\n', '\n').replace('\r', '').replace('\t', '').replace('\xa0', '').strip()
+                .replace('\r\n', '\n').replace('\r', '').replace('\t', '').replace('\xa0', '')
+                .replace(' \n', '\n').replace('\n ', '\n').replace('\n\n', '\n')
+                .strip()
             ])
 
         sleep(self.sleep_time)
@@ -568,14 +567,12 @@ class NetSchoolUser:
                     if table:
                         result_table = {}
                         for tr in BeautifulSoup(table, 'lxml').find('table').find_all('tr'):
-                            for attachment_obj in tr.find('td').find_all('span', class_='AttachmentSpan'):
 
+                            # Replace attachment links
+                            for attachment_obj in tr.find('td').find_all('span', class_='AttachmentSpan'):
                                 link_obj = attachment_obj.find('a')
 
-                                link_info = re_search(REGEX['attachment'], link_obj.get('href'))
-
-                                link, attachment_id = link_info.group(1), int(link_info.group(2))
-
+                                link, attachment_id = re_search(REGEX['attachment'], link_obj.get('href')).groups()
                                 if link.startswith('/') or link.startswith('\\'):
                                     link = 'http://netschool.school.ioffe.ru' + link
 
@@ -591,7 +588,22 @@ class NetSchoolUser:
                                 new_link_obj.string = link_obj.text
                                 attachment_obj.replace_with(str(new_link_obj))
 
-                            result_table[tr.find('th').text.strip()] = tr.find('td').text.strip()
+                            # Replace ordinary links
+                            for link_obj in tr.find('td').find_all('a'):
+                                if link_obj.has_attr('href'):
+
+                                    new_link_obj = self.empty_soup.new_tag('a', href=str(link_obj.get('href')).strip(), target='_blank')
+                                    new_link_obj.string = link_obj.text
+                                    link_obj.replace_with(str(new_link_obj))
+
+                            # Replace newlines
+                            for br in tr.find('td').find_all('br'):
+                                br.replace_with('\n')
+
+                            result_table[tr.find('th').text.strip()] = tr.find('td').text \
+                                .replace('\r\n', '\n').replace('\r', '').replace('\t', '').replace('\xa0', '') \
+                                .replace(' \n', '\n').replace('\n ', '\n').replace('\n\n', '\n') \
+                                .strip()
 
                     info = [title, result_table]
 
@@ -740,6 +752,7 @@ def main(user_login, user_password):  # For development
         # print("get_diary():")
         # print(nts.get_diary(get_class=True, get_name=True, full=True))
         # print(nts.get_diary(datetime.date(year=2021, month=1, day=18), get_class=True, get_name=True, full=True))
+        # print(nts.get_diary(datetime.date(year=2020, month=12, day=4), get_class=True, get_name=True, full=True))
 
         # print("get_activities():")
         # print(nts.get_activities())
