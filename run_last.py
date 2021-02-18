@@ -12,7 +12,7 @@ from nts_parser import NetSchoolUser
 
 DOCPATH = 'doctmp'
 
-MINUTES_5 = datetime.timedelta(minutes=5)
+DELTA_TIMEOUT = datetime.timedelta(minutes=5)
 
 
 def week_period(day_start, day_end):
@@ -101,7 +101,7 @@ def get_full_weekly_timetable(nts, monday, get_class=False, get_name=False):
 
 def run_person(mysql, person):
 
-    if person["last_update"] is not None and datetime.datetime.now() - person["last_update"] < MINUTES_5:
+    if person["last_update"] is not None and datetime.datetime.now() - person["last_update"] < DELTA_TIMEOUT:
         sleep(5)
         return
 
@@ -198,7 +198,7 @@ def run_person(mysql, person):
                 ))
 
             mysql.query("UPDATE `users` SET `last_update` = %s WHERE `id` = %s", (
-                datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                (datetime.datetime.now() - DELTA_TIMEOUT).strftime("%Y-%m-%d %H:%M:%S") if person["last_update"] is None else datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 person["id"]
             ))
 
