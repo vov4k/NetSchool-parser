@@ -2,8 +2,8 @@ from MySQL import MySQL
 
 from traceback import format_exc
 from json import dumps
-from time import sleep
-from os import remove as os_remove
+# from time import sleep
+# from os import remove as os_remove
 from os.path import exists as os_exists
 import datetime
 
@@ -12,7 +12,8 @@ from nts_parser import NetSchoolUser
 
 DOCPATH = 'doctmp'
 
-DELTA_TIMEOUT = datetime.timedelta(minutes=5)
+UPDATE_TIMEOUT = datetime.timedelta(minutes=5)
+SIM_HANDLING = 5
 
 
 def week_period(day_start, day_end):
@@ -101,8 +102,8 @@ def get_full_weekly_timetable(nts, monday, get_class=False, get_name=False):
 
 def run_person(mysql, person):
 
-    if person["last_update"] is not None and datetime.datetime.now() - person["last_update"] < DELTA_TIMEOUT:
-        sleep(5)
+    if person["last_update"] is not None and datetime.datetime.now() - person["last_update"] < UPDATE_TIMEOUT:
+        # sleep(5)
         return
 
     print("Running for person | {} {}...".format(person["first_name"], person["last_name"]))
@@ -198,7 +199,7 @@ def run_person(mysql, person):
                 ))
 
             mysql.query("UPDATE `users` SET `last_update` = %s WHERE `id` = %s", (
-                (datetime.datetime.now() - DELTA_TIMEOUT).strftime("%Y-%m-%d %H:%M:%S") if person["last_update"] is None else datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                (datetime.datetime.now() - UPDATE_TIMEOUT).strftime("%Y-%m-%d %H:%M:%S") if person["last_update"] is None else datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 person["id"]
             ))
 
@@ -217,28 +218,56 @@ def run_person(mysql, person):
 
 
 def run_last():
-    if os_exists(".run_person.lock"):
-        # sleep(5)
-        return
-
-    with open(".run_person.lock", 'w'):
-        pass
+    if not os_exists(".run_person.lock"):
+        with open(".run_person.lock", 'w'):
+            pass
 
     mysql = None
-
     try:
         mysql = MySQL("config.json")
-        run_person(
-            mysql,
-            mysql.query("SELECT * FROM `users` ORDER BY `last_update` LIMIT 1")[0]
-        )
+
+        with open(".run_person.lock", 'r', encoding="utf-8") as file:
+            cur_running_ids = set(map(int, (line for line in file if line.strip())))
+
+        if len(cur_running_ids) < SIM_HANDLING:
+
+            print("SELECT * FROM `users` WHERE {} ORDER BY `last_update` LIMIT 1".format(
+                (
+                    " WHERE " +
+                    " AND ".join("`id` != '{}'".format(user_id) for user_id in cur_running_ids)
+                )
+                if cur_running_ids else ""
+            ))
+
+            person = mysql.query("SELECT * FROM `users`{} ORDER BY `last_update` LIMIT 1".format(
+                (
+                    " WHERE " +
+                    " AND ".join("`id` != '{}'".format(user_id) for user_id in cur_running_ids)
+                )
+                if cur_running_ids else ""
+            ))
+
+            if person:
+                user_id = person[0]['id']
+                with open(".run_person.lock", 'a', encoding="utf-8") as file:
+                    file.write('\n' + str(user_id))
+
+                run_person(mysql, person[0])
+
+                with open(".run_person.lock", 'r', encoding="utf-8") as file:
+                    cur_running_ids = set(map(int, (line for line in file if line.strip())))
+
+                cur_running_ids.discard(user_id)
+
+                with open(".run_person.lock", 'w', encoding="utf-8") as file:
+                    file.write('\n'.join(map(str, cur_running_ids)))
+
     except Exception:
         print(format_exc())
-        sleep(10)
+        # sleep(10)
 
     finally:
         del mysql
-        os_remove(".run_person.lock")
 
 
 if __name__ == "__main__":
