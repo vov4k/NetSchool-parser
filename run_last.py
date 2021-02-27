@@ -1,7 +1,7 @@
 from MySQL import MySQL
 
 from traceback import format_exc
-from json import dumps
+from json import dumps as json_dumps, loads as json_loads
 # from time import sleep
 # from os import remove as os_remove
 from os.path import exists as os_exists
@@ -41,7 +41,7 @@ def day_period(day_start, day_end):
 #     )
 
 
-def every_school_year_week(year=None):
+def school_year_weeks(year=None):
     if year is None:
         year = datetime.datetime.today().year
         if datetime.datetime.today().month < 9:
@@ -49,6 +49,18 @@ def every_school_year_week(year=None):
 
     yield from week_period(
         datetime.date(year, 9, 1),
+        datetime.date(year + 1, 6, 1)
+    )
+
+
+def school_year_weeks_from_now(year=None):
+    if year is None:
+        year = datetime.datetime.today().year
+        if datetime.datetime.today().month < 9:
+            year -= 1
+
+    yield from week_period(
+        (datetime.datetime.today() - datetime.timedelta(days=datetime.datetime.today().weekday())).date(),
         datetime.date(year + 1, 6, 1)
     )
 
@@ -103,17 +115,16 @@ def get_full_weekly_timetable(nts, monday, get_class=False, get_name=False):
 def run_person(mysql, person):
 
     if person["last_update"] is not None and datetime.datetime.now() - person["last_update"] < UPDATE_TIMEOUT:
-        # sleep(5)
         return
 
     print("Running for person | {} {}...".format(person["first_name"], person["last_name"]))
 
     nts = NetSchoolUser(person["username"], person["password"], DOCPATH)
 
-    name = None
-    class_ = None
-
     try:
+
+        name = None
+        class_ = None
 
         if nts.login():
             print("Login success")
@@ -139,15 +150,20 @@ def run_person(mysql, person):
                 print(format_exc())
 
             # Timetable:
-            timetable = {}
             try:
+                timetable = json_loads(mysql.query("SELECT `timetable` FROM `users` WHERE `id` = %s", format(person["id"]))[0]['timetable'])
+
+                for date in list(timetable.keys()):
+                    if datetime.datetime.strptime(date, "%Y-%m-%d").date() >= datetime.datetime.today().date():
+                        del timetable[date]
+
                 if person["last_update"] is None:
                     today = datetime.datetime.today()
                     monday = today - datetime.timedelta(days=today.weekday())
                     cur_period = week_period(monday, monday + datetime.timedelta(days=7))
 
                 else:
-                    cur_period = every_school_year_week()
+                    cur_period = school_year_weeks_from_now()
 
                 for week_start in cur_period:
                     print("Getting timetable for week starting with {}...".format(week_start))
@@ -159,16 +175,17 @@ def run_person(mysql, person):
 
                     timetable.update(**weekly_timetable)
 
-                mysql.query("UPDATE `users` SET `timetable` = %s WHERE `id` = %s", (dumps(timetable, ensure_ascii=False), person["id"]))
+                mysql.query("UPDATE `users` SET `timetable` = %s WHERE `id` = %s", (json_dumps(timetable, ensure_ascii=False), person["id"]))
 
             except Exception:
                 print(format_exc())
 
-            # Marks:
-            diary = {}
+            # Diary:
             if person["last_update"] is not None:
+                diary = {}
+
                 try:
-                    for week_start in every_school_year_week():
+                    for week_start in school_year_weeks():
                         print("Getting diary for week starting with {}...".format(week_start))
 
                         new_class, new_name, weekly_diary = nts.get_diary(week_start, get_class=(class_ is None), get_name=(name is None), full=True)
@@ -178,7 +195,7 @@ def run_person(mysql, person):
 
                         diary.update(**{key.strftime("%Y-%m-%d"): weekly_diary[key] for key in weekly_diary})
 
-                    mysql.query("UPDATE `users` SET `diary` = %s WHERE `id` = %s", (dumps(diary, ensure_ascii=False), person["id"]))
+                    mysql.query("UPDATE `users` SET `diary` = %s WHERE `id` = %s", (json_dumps(diary, ensure_ascii=False), person["id"]))
 
                 except Exception:
                     print(format_exc())
@@ -231,14 +248,6 @@ def run_last():
 
         if len(cur_running_ids) < SIM_HANDLING:
 
-            print("SELECT * FROM `users` WHERE {} ORDER BY `last_update` LIMIT 1".format(
-                (
-                    " WHERE " +
-                    " AND ".join("`id` != '{}'".format(user_id) for user_id in cur_running_ids)
-                )
-                if cur_running_ids else ""
-            ))
-
             person = mysql.query("SELECT * FROM `users`{} ORDER BY `last_update` LIMIT 1".format(
                 (
                     " WHERE " +
@@ -252,7 +261,10 @@ def run_last():
                 with open(".run_person.lock", 'a', encoding="utf-8") as file:
                     file.write('\n' + str(user_id))
 
-                run_person(mysql, person[0])
+                try:
+                    run_person(mysql, person[0])
+                except Exception:
+                    pass
 
                 with open(".run_person.lock", 'r', encoding="utf-8") as file:
                     cur_running_ids = set(map(int, (line for line in file if line.strip())))
