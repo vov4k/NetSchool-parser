@@ -13,6 +13,7 @@ from nts_parser import NetSchoolUser
 DOCPATH = 'doctmp'
 
 UPDATE_TIMEOUT = datetime.timedelta(minutes=5)
+FULL_UPDATE_TIMEOUT = datetime.timedelta(hours=1)
 SIM_HANDLING = 5
 
 
@@ -114,7 +115,13 @@ def get_full_weekly_timetable(nts, monday, get_class=False, get_name=False):
 
 def run_person(mysql, person):
 
-    if person["last_update"] is not None and datetime.datetime.now() - person["last_update"] < UPDATE_TIMEOUT:
+    fast_update = person["last_update"] is None
+    full_update = person["last_full_update"] is None or (datetime.datetime.now() - person["last_full_update"] > FULL_UPDATE_TIMEOUT)
+
+    if not (
+        fast_update or full_update or
+        datetime.datetime.now() - person["last_update"] > UPDATE_TIMEOUT
+    ):
         return
 
     print("Running for person | {} {}...".format(person["first_name"], person["last_name"]))
@@ -131,39 +138,48 @@ def run_person(mysql, person):
 
             # Announcements:
             try:
-                print("Getting announcements...")
-                name, announcements = nts.get_announcements(get_name=True)
+                if not fast_update:
+                    print("Getting announcements...")
+                    name, announcements = nts.get_announcements(get_name=True)
 
-                mysql.query("LOCK TABLES announcements WRITE;TRUNCATE TABLE `announcements`;")
+                    mysql.query("LOCK TABLES announcements WRITE;TRUNCATE TABLE `announcements`;")
 
-                for author, title, date, text in announcements:
-                    mysql.query(
-                        "INSERT INTO `announcements` (`author`, `title`, `date`, `text`) VALUES (%s, %s, %s, %s);",
-                        (author, title, date, text)
-                    )
+                    for author, title, date, text in announcements:
+                        mysql.query(
+                            "INSERT INTO `announcements` (`author`, `title`, `date`, `text`) VALUES (%s, %s, %s, %s);",
+                            (author, title, date, text)
+                        )
 
-                mysql.query("UNLOCK TABLES;")
-
-                print("Got announcements")
+                    mysql.query("UNLOCK TABLES;")
 
             except Exception:
                 print(format_exc())
 
             # Timetable:
             try:
-                timetable = json_loads(mysql.query("SELECT `timetable` FROM `users` WHERE `id` = %s", format(person["id"]))[0]['timetable'])
+                timetable = {}
 
-                for date in list(timetable.keys()):
-                    if datetime.datetime.strptime(date, "%Y-%m-%d").date() >= datetime.datetime.today().date():
-                        del timetable[date]
-
-                if person["last_update"] is None:
+                if fast_update:
                     today = datetime.datetime.today()
                     monday = today - datetime.timedelta(days=today.weekday())
                     cur_period = week_period(monday, monday + datetime.timedelta(days=7))
 
+                elif full_update:
+                    cur_period = school_year_weeks()
+
                 else:
-                    cur_period = school_year_weeks_from_now()
+                    try:
+                        timetable = {
+                            date: value for date, value in (
+                                json_loads(mysql.query("SELECT `timetable` FROM `users` WHERE `id` = %s", format(person["id"]))[0]["timetable"]).items()
+                            ) if datetime.datetime.strptime(date, "%Y-%m-%d").date() < (datetime.datetime.today() - datetime.timedelta(days=datetime.datetime.today().weekday())).date()
+                        }
+                        cur_period = school_year_weeks_from_now()
+
+                    except Exception:
+                        print(format_exc())
+                        timetable = {}
+                        cur_period = school_year_weeks()
 
                 for week_start in cur_period:
                     print("Getting timetable for week starting with {}...".format(week_start))
@@ -181,10 +197,10 @@ def run_person(mysql, person):
                 print(format_exc())
 
             # Diary:
-            if person["last_update"] is not None:
-                diary = {}
+            try:
+                if not fast_update:
+                    diary = {}
 
-                try:
                     for week_start in school_year_weeks():
                         print("Getting diary for week starting with {}...".format(week_start))
 
@@ -197,10 +213,10 @@ def run_person(mysql, person):
 
                     mysql.query("UPDATE `users` SET `diary` = %s WHERE `id` = %s", (json_dumps(diary, ensure_ascii=False), person["id"]))
 
-                except Exception:
-                    print(format_exc())
+            except Exception:
+                print(format_exc())
 
-            # General info (first name, last name, last update):
+            # General info (first name, last name, last update time):
             if name is not None:
                 last_name, first_name = map(str.strip, name.split())
 
@@ -216,9 +232,19 @@ def run_person(mysql, person):
                 ))
 
             mysql.query("UPDATE `users` SET `last_update` = %s WHERE `id` = %s", (
-                (datetime.datetime.now() - UPDATE_TIMEOUT).strftime("%Y-%m-%d %H:%M:%S") if person["last_update"] is None else datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+
+                (datetime.datetime.now() - UPDATE_TIMEOUT).strftime("%Y-%m-%d %H:%M:%S")
+                if person["last_update"] is None else
+                datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+
                 person["id"]
             ))
+
+            if full_update:
+                mysql.query("UPDATE `users` SET `last_full_update` = %s WHERE `id` = %s", (
+                    datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    person["id"]
+                ))
 
         else:
             print("Login failed")
