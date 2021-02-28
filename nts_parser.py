@@ -33,7 +33,7 @@ def upload_file(path):
         )
 
     if r.status_code == 200 and r.text == 'success':
-        return "https://netschool.npanuhin.me/doc/" + os_split(path)[1].strip()
+        return "/src/get_doc.php?file=" + os_split(path)[1].strip()
     return None
 
 
