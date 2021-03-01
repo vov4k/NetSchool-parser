@@ -116,7 +116,9 @@ def get_full_weekly_timetable(nts, monday, get_class=False, get_name=False):
 def run_person(mysql, person):
 
     fast_update = person["last_update"] is None
-    full_update = person["last_full_update"] is None or (datetime.datetime.now() - person["last_full_update"] > FULL_UPDATE_TIMEOUT)
+    full_update = not fast_update and (
+        person["last_full_update"] is None or (datetime.datetime.now() - person["last_full_update"] > FULL_UPDATE_TIMEOUT)
+    )
 
     if not (
         fast_update or full_update or
@@ -240,7 +242,7 @@ def run_person(mysql, person):
                 person["id"]
             ))
 
-            if full_update:
+            if full_update and not fast_update:
                 mysql.query("UPDATE `users` SET `last_full_update` = %s WHERE `id` = %s", (
                     datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     person["id"]
