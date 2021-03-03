@@ -126,7 +126,7 @@ def run_person(mysql, person):
     ):
         return
 
-    print("Running for person | {} {}...".format(person["first_name"], person["last_name"]))
+    print("Running for person | {}...".format(person["name"]))
 
     nts = NetSchoolUser(person["username"], person["password"], DOCPATH)
 
@@ -218,13 +218,13 @@ def run_person(mysql, person):
             except Exception:
                 print(format_exc())
 
-            # General info (first name, last name, last update time):
+            # General info (name, last update time):
             if name is not None:
-                last_name, first_name = map(str.strip, name.split())
+                if len(name.split()) == 2:
+                    name = ' '.join(name.split()[::-1])
 
-                mysql.query("UPDATE `users` SET `first_name` = %s, `last_name` = %s WHERE `id` = %s", (
-                    first_name, last_name,
-                    person["id"]
+                mysql.query("UPDATE `users` SET `name` = %s WHERE `id` = %s", (
+                    name, person["id"]
                 ))
 
             if class_ is not None:

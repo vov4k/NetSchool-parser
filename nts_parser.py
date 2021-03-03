@@ -4,7 +4,8 @@ from re import search as re_search
 from json import load as json_load
 from datetime import timedelta
 from bs4 import BeautifulSoup
-from hashlib import md5
+from password_hash import get_pw
+# from hashlib import md5
 from time import sleep
 import datetime
 
@@ -80,7 +81,11 @@ class NetSchoolUser:
 
         salt = re_search(REGEX['salt'], r).group(1)
 
-        self.login_params['PW2'] = md5((str(salt) + md5(self.password.encode()).hexdigest()).encode()).hexdigest()
+        # print(md5((str(43561226378) + md5(self.password.encode()).hexdigest()).encode()).hexdigest())
+        # print(get_pw(str(43561226378), self.password))
+
+        self.login_params['PW2'] = get_pw(salt, self.password)
+        # self.login_params['PW2'] = md5((str(salt) + md5(self.password.encode()).hexdigest()).encode()).hexdigest()
         self.login_params['PW'] = self.login_params['PW2'][:len(self.password)]
 
         sleep(self.sleep_time)
