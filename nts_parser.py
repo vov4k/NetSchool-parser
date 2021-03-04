@@ -569,6 +569,9 @@ class NetSchoolUser:
                     title = r['data']['strTitle'] if 'strTitle' in r['data'] else ""
                     table = r['data']['strTable'] if 'strTable' in r['data'] else ""
 
+                    teacher = title[title.rfind('(') + 1: title.rfind(')')].strip()
+                    teacher = teacher if teacher else None
+
                     if table:
                         result_table = {}
                         for tr in BeautifulSoup(table, 'lxml').find('table').find_all('tr'):
@@ -610,7 +613,7 @@ class NetSchoolUser:
                                 .replace(' \n', '\n').replace('\n ', '\n').replace('\n\n', '\n') \
                                 .strip()
 
-                    info = [title, result_table]
+                    info = [teacher, result_table]
 
             mark = lesson[start_index + 4].text.strip()
             if mark == '-':
