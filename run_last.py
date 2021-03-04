@@ -14,6 +14,7 @@ DOCPATH = 'doctmp'
 
 UPDATE_TIMEOUT = datetime.timedelta(minutes=5)
 FULL_UPDATE_TIMEOUT = datetime.timedelta(hours=1)
+PROCESS_KILL_TIMOUT = datetime.timedelta(minutes=10)
 SIM_HANDLING = 5
 
 
@@ -263,6 +264,20 @@ def run_person(mysql, person):
 
 
 def run_last():
+
+    def get_cur_running():
+        with open(".run_person.lock", 'r', encoding="utf-8") as file:
+            cur_running = {
+                int(line.split()[0]): float(line.split()[1])
+                for line in file if line.strip() and datetime.datetime.now() - datetime.datetime.fromtimestamp(float(line.split()[1])) < PROCESS_KILL_TIMOUT
+            }
+
+        return cur_running
+
+    def set_cur_running(cur_running):
+        with open(".run_person.lock", 'w', encoding="utf-8") as file:
+            file.write('\n'.join("{} {}".format(key, value) for key, value in cur_running.items()))
+
     if not os_exists(".run_person.lock"):
         with open(".run_person.lock", 'w'):
             pass
@@ -271,36 +286,35 @@ def run_last():
     try:
         mysql = MySQL("config.json")
 
-        with open(".run_person.lock", 'r', encoding="utf-8") as file:
-            cur_running_ids = set(map(int, (line for line in file if line.strip())))
+        cur_running = get_cur_running()
 
-        if len(cur_running_ids) < SIM_HANDLING:
+        if len(cur_running) < SIM_HANDLING:
 
             person = mysql.query("SELECT * FROM `users`{} ORDER BY `last_update` LIMIT 1".format(
                 (
                     " WHERE " +
-                    " AND ".join("`id` != '{}'".format(user_id) for user_id in cur_running_ids)
+                    " AND ".join("`id` != '{}'".format(user_id) for user_id in cur_running)
                 )
-                if cur_running_ids else ""
+                if cur_running else ""
             ))
 
             if person:
                 user_id = person[0]['id']
-                with open(".run_person.lock", 'a', encoding="utf-8") as file:
-                    file.write('\n' + str(user_id))
+                cur_running[user_id] = datetime.datetime.now().timestamp()
+
+                set_cur_running(cur_running)
 
                 try:
                     run_person(mysql, person[0])
                 except Exception:
                     pass
 
-                with open(".run_person.lock", 'r', encoding="utf-8") as file:
-                    cur_running_ids = set(map(int, (line for line in file if line.strip())))
+                cur_running = get_cur_running()
 
-                cur_running_ids.discard(user_id)
+                if user_id in cur_running:
+                    del cur_running[user_id]
 
-                with open(".run_person.lock", 'w', encoding="utf-8") as file:
-                    file.write('\n'.join(map(str, cur_running_ids)))
+                set_cur_running(cur_running)
 
     except Exception:
         print(format_exc())
