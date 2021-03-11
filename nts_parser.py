@@ -1,9 +1,10 @@
-from os.path import split as os_split, normpath as os_normpath, join as os_join
+from os.path import split as os_split, normpath as os_normpath, join as os_join, isdir as os_isdir, exists as os_exists
 from requests import Session, post as req_post
 from re import search as re_search
 from json import load as json_load
 from datetime import timedelta
 from bs4 import BeautifulSoup
+from shutil import copyfile
 # from password_hash import hexMD5 as cusom_md5
 from hashlib import md5
 from time import sleep
@@ -23,7 +24,16 @@ def mkpath(*paths):
 
 
 def upload_attachment(path, file_upload_key):
-    with open(path, 'rb') as file:
+    if os_isdir("/var/www/netschool/www/doc"):
+        try:
+            copyfile(path, mkpath("/var/www/netschool/www/doc/", os_split(path)[1].strip()))
+            return "/src/get_doc.php?file=" + os_split(path)[1].strip()
+        except Exception:
+            return None
+
+    print("Uploading file...")
+
+    with open(path, "rb") as file:
         r = req_post(
             "https://netschool.npanuhin.me/src/upload_file.php",
             data={'file_upload_key': file_upload_key, 'path': 'doc'},
@@ -159,18 +169,22 @@ class NetSchoolUser:
         return r
 
     def download_attachment(self, url, attachment_id):
-        params = {
+        path = mkpath(self.download_path, str(attachment_id) + '.' + os_split(url)[1])
+        if os_exists(path):
+            return path
+
+        print("Downloading file...")
+
+        r = self.session.post(url, data={
             'AT': self.at,
             'VER': self.ver,
             'attachmentId': attachment_id
-        }
-        r = self.session.post(url, data=params)
+        })
 
         if r.status_code == 200:
-            filepath = mkpath(self.download_path, str(attachment_id) + '.' + os_split(url)[1])
-            with open(filepath, 'wb') as file:
+            with open(path, 'wb') as file:
                 file.write(r.content)
-            return filepath
+            return path
 
         return None
 
