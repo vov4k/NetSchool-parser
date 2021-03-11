@@ -4,8 +4,8 @@ from re import search as re_search
 from json import load as json_load
 from datetime import timedelta
 from bs4 import BeautifulSoup
-from password_hash import get_pw
-# from hashlib import md5
+# from password_hash import hexMD5 as cusom_md5
+from hashlib import md5
 from time import sleep
 import datetime
 
@@ -22,10 +22,7 @@ def mkpath(*paths):
     return os_normpath(os_join(*paths))
 
 
-def upload_file(path):
-    with open("config.json", 'r', encoding="utf-8") as file:
-        file_upload_key = json_load(file, encoding="utf-8")["file_upload_key"]
-
+def upload_attachment(path, file_upload_key):
     with open(path, 'rb') as file:
         r = req_post(
             "https://netschool.npanuhin.me/src/upload_file.php",
@@ -36,6 +33,11 @@ def upload_file(path):
     if r.status_code == 200 and r.text == 'success':
         return "/src/get_doc.php?file=" + os_split(path)[1].strip()
     return None
+
+
+def md5_hash(text):
+    # return cusom_md5(text)
+    return md5(text.encode('cp1251')).hexdigest()
 
 
 class NetSchoolUser:
@@ -62,6 +64,9 @@ class NetSchoolUser:
         self.download_path = download_path
         self.sleep_time = 0
 
+        with open("config.json", 'r', encoding="utf-8") as file:
+            self.file_upload_key = json_load(file, encoding="utf-8")["file_upload_key"]
+
         self.at, self.ver = "", ""
 
         self.empty_soup = BeautifulSoup('', 'lxml')
@@ -81,11 +86,7 @@ class NetSchoolUser:
 
         salt = re_search(REGEX['salt'], r).group(1)
 
-        # print(md5((str(43561226378) + md5(self.password.encode()).hexdigest()).encode()).hexdigest())
-        # print(get_pw(str(43561226378), self.password))
-
-        self.login_params['PW2'] = get_pw(salt, self.password)
-        # self.login_params['PW2'] = md5((str(salt) + md5(self.password.encode()).hexdigest()).encode()).hexdigest()
+        self.login_params['PW2'] = md5_hash(str(salt) + md5_hash(self.password))
         self.login_params['PW'] = self.login_params['PW2'][:len(self.password)]
 
         sleep(self.sleep_time)
@@ -217,7 +218,7 @@ class NetSchoolUser:
                         link = 'http://netschool.school.ioffe.ru' + link
 
                     try:
-                        new_link = upload_file(self.download_attachment(link, attachment_id))
+                        new_link = upload_attachment(self.download_attachment(link, attachment_id), self.file_upload_key)
                         assert new_link is not None
 
                     except Exception as e:
@@ -585,7 +586,7 @@ class NetSchoolUser:
                                     link = 'http://netschool.school.ioffe.ru' + link
 
                                 try:
-                                    new_link = upload_file(self.download_attachment(link, attachment_id))
+                                    new_link = upload_attachment(self.download_attachment(link, attachment_id), self.file_upload_key)
                                     assert new_link is not None
 
                                 except Exception as e:
