@@ -94,7 +94,7 @@ class NetSchoolUser:
         self.login_params['LoginType'] = soup.find('input', {'name': 'LoginType'}).get('value').strip()
         self.login_params['LT'] = soup.find('input', {'name': 'LT'}).get('value').strip()
 
-        salt = re_search(REGEX['salt'], r).group(1)
+        salt = re_search(REGEX['salt'], r).group(1).strip()
 
         self.login_params['PW2'] = md5_hash(str(salt) + md5_hash(self.password))
         self.login_params['PW'] = self.login_params['PW2'][:len(self.password)]
@@ -105,7 +105,8 @@ class NetSchoolUser:
         r = self.session.post('http://netschool.school.ioffe.ru/asp/postlogin.asp', data=self.login_params)
 
         if r.url.startswith('http://netschool.school.ioffe.ru/asp/error.asp'):
-            return False
+            error_text = re_search(REGEX['error_message'], r.text).group(2).strip()
+            return False if error_text.lower() == "Неправильный пароль или имя пользователя".lower() else None
 
         soup = BeautifulSoup(r.text, 'lxml')
 

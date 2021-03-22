@@ -136,7 +136,9 @@ def run_person(mysql, person):
         name = None
         class_ = None
 
-        if nts.login():
+        login_status = nts.login()
+
+        if login_status:
             print("Login success")
 
             # Announcements:
@@ -249,7 +251,7 @@ def run_person(mysql, person):
                     person["id"]
                 ))
 
-        else:
+        elif login_status is not None:  # if login_status == False
             print("Login failed")
             mysql.query("DELETE FROM `users` WHERE `id` = %s", (person["id"],))
 
