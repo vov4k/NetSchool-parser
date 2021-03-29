@@ -15,7 +15,7 @@ DOCPATH = 'doctmp'
 UPDATE_TIMEOUT = datetime.timedelta(minutes=5)
 FULL_UPDATE_TIMEOUT = datetime.timedelta(hours=1)
 PROCESS_KILL_TIMOUT = datetime.timedelta(minutes=10)
-SIM_HANDLING = 4
+SIM_HANDLING = 5
 
 
 def week_period(day_start, day_end):

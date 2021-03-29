@@ -5,7 +5,7 @@ from json import load as json_load
 from datetime import timedelta
 from bs4 import BeautifulSoup
 from shutil import copyfile
-# from password_hash import hexMD5 as cusom_md5
+# from src.password_hash import hexMD5 as cusom_md5
 from hashlib import md5
 from time import sleep
 import datetime
