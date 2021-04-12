@@ -1,6 +1,6 @@
 #### Requirements
 
-Run `py -3 -m pip install -U -r requirements.txt` in command promt.
+Run `py -3 -m pip install -U -r requirements.txt` in command prompt.
 
 Python modules:
 - [requests](https://pypi.org/project/requests)

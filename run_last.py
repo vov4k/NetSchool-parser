@@ -71,6 +71,7 @@ def get_full_weekly_timetable(nts, monday, get_class=False, get_name=False):
     # monday -= datetime.timedelta(days=day.weekday())  # If monday is actually not monday
 
     result = {}
+    class_, name_ = None, None
 
     try:
         class_, name_, weekly_timetable = nts.get_weekly_timetable_ext(date=monday, get_class=get_class, get_name=get_name)
