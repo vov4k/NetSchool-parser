@@ -256,7 +256,7 @@ class NetSchoolUser:
                 date,
                 content.text.replace('Присоединенные файлы\n', 'Присоединенные файлы:')
                 .replace('\r\n', '\n').replace('\r', '').replace('\t', '').replace('\xa0', '')
-                .replace(' \n', '\n').replace('\n ', '\n').replace('\n\n', '\n')
+                .replace(' \n', '\n').replace('\n ', '\n')  # .replace('\n\n', '\n')
                 .strip()
             ])
 
