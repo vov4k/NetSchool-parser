@@ -12,10 +12,13 @@ from nts_parser import NetSchoolUser
 
 DOCPATH = 'doctmp'
 
-UPDATE_TIMEOUT = datetime.timedelta(minutes=5)
-FULL_UPDATE_TIMEOUT = datetime.timedelta(hours=1)
 PROCESS_KILL_TIMOUT = datetime.timedelta(minutes=10)
 SIM_HANDLING = 7
+
+
+def get_update_timeout(person):
+    update_timeout = (((datetime.datetime.now() - person['last_visit']).seconds / 86400) ** 2) / 2 + 1
+    return datetime.timedelta(hours=update_timeout / 12), datetime.timedelta(hours=update_timeout)
 
 
 def week_period(day_start, day_end):
@@ -119,21 +122,23 @@ def run_person(mysql, person):
 
     fast_update = person["last_update"] is None
     full_update = not fast_update and (
-        person["last_full_update"] is None or (datetime.datetime.now() - person["last_full_update"] > FULL_UPDATE_TIMEOUT)
+        person["last_full_update"] is None or (datetime.datetime.now() - person["last_full_update"] > get_update_timeout(person)[1])
+    )
+    ordinary_update = (
+        person["last_update"] is not None and datetime.datetime.now() - person["last_update"] > get_update_timeout(person)[0]
     )
 
-    if not (
-        fast_update or full_update or
-        datetime.datetime.now() - person["last_update"] > UPDATE_TIMEOUT
-    ):
+    if not (fast_update or full_update or ordinary_update):
         return
 
-    print("Running for person | {}...".format(person["name"]))
+    print("Running \"{}\" for person | {}...".format(
+        "fast_update" if fast_update else "full_update" if full_update else "ordinary_update",
+        person["username"]
+    ))
 
     nts = NetSchoolUser(person["username"], person["password"], DOCPATH)
 
     try:
-
         name = None
         class_ = None
 
@@ -239,7 +244,7 @@ def run_person(mysql, person):
 
             mysql.query("UPDATE `users` SET `last_update` = %s WHERE `id` = %s", (
 
-                (datetime.datetime.now() - UPDATE_TIMEOUT).strftime("%Y-%m-%d %H:%M:%S")
+                (datetime.datetime.now() - datetime.timedelta(years=1)).strftime("%Y-%m-%d %H:%M:%S")
                 if person["last_update"] is None else
                 datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
 
@@ -293,13 +298,31 @@ def run_last():
 
         if len(cur_running) < SIM_HANDLING:
 
-            person = mysql.query("SELECT * FROM `users`{} ORDER BY `last_update` LIMIT 1".format(
-                (
-                    " WHERE " +
-                    " AND ".join("`id` != '{}'".format(user_id) for user_id in cur_running)
+            person = mysql.query(
+                """
+                    SELECT * FROM `users` WHERE
+                    UNIX_TIMESTAMP(`last_update`) + (
+
+                        POW((UNIX_TIMESTAMP() - UNIX_TIMESTAMP(`last_visit`)) / 86400, 2) / 2 + 1
+                    
+                    ) / 12 * 3600 < UNIX_TIMESTAMP(NOW())
+
+                    {} ORDER BY
+
+                    UNIX_TIMESTAMP(`last_update`) + (
+                    
+                        POW((UNIX_TIMESTAMP() - UNIX_TIMESTAMP(`last_visit`)) / 86400, 2) / 2 + 1
+
+                    ) / 12 * 3600
+
+                    ASC LIMIT 1
+                """.format(
+                    (
+                        " AND " + " AND ".join("`id` != '{}'".format(user_id) for user_id in cur_running)
+                    )
+                    if cur_running else ""
                 )
-                if cur_running else ""
-            ))
+            )
 
             if person:
                 user_id = person[0]['id']
@@ -310,7 +333,7 @@ def run_last():
                 try:
                     run_person(mysql, person[0])
                 except Exception:
-                    pass
+                    print(format_exc())
 
                 cur_running = get_cur_running()
 
