@@ -17,6 +17,9 @@ SIM_HANDLING = 7
 
 
 def get_update_timeout(person):
+    if person['last_visit'] is None:
+        return datetime.timedelta(), datetime.timedelta()
+
     update_timeout = (((datetime.datetime.now() - person['last_visit']).seconds / 86400) ** 2) / 2 + 1
     return datetime.timedelta(hours=update_timeout / 12), datetime.timedelta(hours=update_timeout)
 
@@ -244,7 +247,7 @@ def run_person(mysql, person):
 
             mysql.query("UPDATE `users` SET `last_update` = %s WHERE `id` = %s", (
 
-                (datetime.datetime.now() - datetime.timedelta(years=1)).strftime("%Y-%m-%d %H:%M:%S")
+                (datetime.datetime.now() - datetime.timedelta(hours=8760)).strftime("%Y-%m-%d %H:%M:%S")
                 if person["last_update"] is None else
                 datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
 
@@ -301,11 +304,16 @@ def run_last():
             person = mysql.query(
                 """
                     SELECT * FROM `users` WHERE
-                    UNIX_TIMESTAMP(`last_update`) + (
 
-                        POW((UNIX_TIMESTAMP() - UNIX_TIMESTAMP(`last_visit`)) / 86400, 2) / 2 + 1
-                    
-                    ) / 12 * 3600 < UNIX_TIMESTAMP(NOW())
+                    (
+                        `last_visit` IS NULL OR
+
+                        UNIX_TIMESTAMP(`last_update`) + (
+
+                            POW((UNIX_TIMESTAMP() - UNIX_TIMESTAMP(`last_visit`)) / 86400, 2) / 2 + 1
+                        
+                        ) / 12 * 3600 < UNIX_TIMESTAMP(NOW())
+                    )
 
                     {} ORDER BY
 
@@ -318,7 +326,7 @@ def run_last():
                     ASC LIMIT 1
                 """.format(
                     (
-                        " AND " + " AND ".join("`id` != '{}'".format(user_id) for user_id in cur_running)
+                        "AND " + " AND ".join("`id` != '{}'".format(user_id) for user_id in cur_running)
                     )
                     if cur_running else ""
                 )
