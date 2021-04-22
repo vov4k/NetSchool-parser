@@ -19,18 +19,28 @@ class MySQL:
                                           password=self.password,
                                           db=self.db,
                                           cursorclass=pymysql.cursors.DictCursor,
-                                          autocommit=True,
+                                          autocommit=False,
                                           client_flag=CLIENT.MULTI_STATEMENTS)
+
+    def __del__(self):
+        self.commit()
+        self.close()
 
     def query(self, sql, args=None):
         with self.connection.cursor() as cursor:
+            rows_num = cursor.execute(sql, args)
+
+        return rows_num
+
+    def fetch(self, sql, args=None):
+        with self.connection.cursor() as cursor:
             cursor.execute(sql, args)
-            result = cursor.fetchall()
+            data = cursor.fetchall()
 
-        return result
+        return data
 
-    def __del__(self):
-        self.close()
+    def commit(self):
+        self.connection.commit()
 
     def close(self):
         self.connection.close()
