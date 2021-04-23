@@ -10,23 +10,32 @@ import datetime
 from nts_parser import NetSchoolUser
 
 
-DOCPATH = 'doctmp'
+DOCPATH = "doctmp"
 
 PROCESS_KILL_TIMOUT = datetime.timedelta(minutes=10)
 SIM_RUNNING = 5
 
 
+def get_monday(day=None):
+    if day is None:
+        day = datetime.datetime.today()
+    return day - datetime.timedelta(days=day.weekday())
+
+
 def get_update_timeout(person):
-    if person['last_visit'] is None:
+    def fun(x):
+        return (x ** 2) / 2 + 1
+
+    if person["last_visit"] is None:
         return datetime.timedelta(), datetime.timedelta()
 
-    update_timeout = (((datetime.datetime.now() - person['last_visit']).seconds / 86400) ** 2) / 2 + 1
+    update_timeout = fun((datetime.datetime.now() - person["last_visit"]).seconds / 86400)
     return datetime.timedelta(hours=update_timeout / 12), datetime.timedelta(hours=update_timeout)
 
 
 def week_period(day_start, day_end):
-    day_start -= datetime.timedelta(days=day_start.weekday())
-    day_end -= datetime.timedelta(days=day_start.weekday())
+    day_start = get_monday(day_start)
+    day_end = get_monday(day_end)
 
     for i in range((day_end - day_start).days // 7):
         yield day_start + datetime.timedelta(weeks=i)
@@ -68,13 +77,13 @@ def school_year_weeks_from_now(year=None):
             year -= 1
 
     yield from week_period(
-        (datetime.datetime.today() - datetime.timedelta(days=datetime.datetime.today().weekday())).date(),
+        get_monday().date(),
         datetime.date(year + 1, 6, 1)
     )
 
 
 def get_full_weekly_timetable(nts, monday, get_class=False, get_name=False):
-    # monday -= datetime.timedelta(days=day.weekday())  # If monday is actually not monday
+    # monday = get_monday(monday)  # If monday is actually not monday
 
     result = {}
     class_, name_ = None, None
@@ -137,10 +146,10 @@ def run_person(mysql, person):
 
     nts = NetSchoolUser(person["username"], person["password"], DOCPATH)
 
-    try:
-        name = None
-        class_ = None
+    name = None
+    class_ = None
 
+    try:
         login_status = nts.login()
 
         if login_status:
@@ -152,11 +161,11 @@ def run_person(mysql, person):
                     print("Getting announcements...")
                     name, announcements = nts.get_announcements(get_name=True)
 
-                    mysql.query("LOCK TABLES announcements WRITE;TRUNCATE TABLE `announcements`;")
+                    mysql.query("LOCK TABLES announcements WRITE;TRUNCATE TABLE `announcements`")
 
                     for author, title, date, text in announcements:
                         mysql.query(
-                            "INSERT INTO `announcements` (`author`, `title`, `date`, `text`) VALUES (%s, %s, %s, %s);",
+                            "INSERT INTO `announcements` (`author`, `title`, `date`, `text`) VALUES (%s, %s, %s, %s)",
                             (author, title, date, text)
                         )
 
@@ -171,9 +180,7 @@ def run_person(mysql, person):
                 timetable = {}
 
                 if fast_update:
-                    today = datetime.datetime.today()
-                    monday = today - datetime.timedelta(days=today.weekday())
-                    cur_period = week_period(monday, monday + datetime.timedelta(days=7))
+                    cur_period = week_period(get_monday(), get_monday() + datetime.timedelta(days=7))
 
                 elif full_update:
                     cur_period = school_year_weeks()
@@ -183,7 +190,7 @@ def run_person(mysql, person):
                         timetable = {
                             date: value for date, value in (
                                 json_loads(mysql.fetch("SELECT `timetable` FROM `users` WHERE `id` = %s", format(person["id"]))[0]["timetable"]).items()
-                            ) if datetime.datetime.strptime(date, "%Y-%m-%d").date() < (datetime.datetime.today() - datetime.timedelta(days=datetime.datetime.today().weekday())).date()
+                            ) if datetime.datetime.strptime(date, "%Y-%m-%d").date() < get_monday().date()
                         }
                         cur_period = school_year_weeks_from_now()
 
@@ -222,7 +229,7 @@ def run_person(mysql, person):
                         diary = {
                             date: value for date, value in (
                                 json_loads(mysql.fetch("SELECT `diary` FROM `users` WHERE `id` = %s", format(person["id"]))[0]["diary"]).items()
-                            ) if datetime.datetime.strptime(date, "%Y-%m-%d").date() < (datetime.datetime.today() - datetime.timedelta(days=datetime.datetime.today().weekday())).date()
+                            ) if datetime.datetime.strptime(date, "%Y-%m-%d").date() < get_monday().date()
                         }
                         cur_period = school_year_weeks_from_now()
 
