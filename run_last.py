@@ -19,7 +19,8 @@ SIM_RUNNING = 5
 def get_monday(day=None):
     if day is None:
         day = datetime.datetime.today()
-    return day - datetime.timedelta(days=day.weekday())
+    result = day - datetime.timedelta(days=day.weekday())
+    return (result.date() if isinstance(result, datetime.datetime) else result)
 
 
 def get_update_timeout(person):
@@ -46,7 +47,7 @@ def day_period(day_start, day_end):
         yield day_start + datetime.timedelta(days=i)
 
 
-# def every_school_year_day(year=None):
+# def school_year_days(year=None):
 #     if year is None:
 #         year = datetime.datetime.today().year
 #         if datetime.datetime.today().month < 9:
@@ -70,16 +71,16 @@ def school_year_weeks(year=None):
     )
 
 
-def school_year_weeks_from_now(year=None):
-    if year is None:
-        year = datetime.datetime.today().year
-        if datetime.datetime.today().month < 9:
-            year -= 1
+# def school_year_weeks_from_now(year=None):
+#     if year is None:
+#         year = datetime.datetime.today().year
+#         if datetime.datetime.today().month < 9:
+#             year -= 1
 
-    yield from week_period(
-        get_monday().date(),
-        datetime.date(year + 1, 6, 1)
-    )
+#     yield from week_period(
+#         get_monday(),
+#         datetime.date(year + 1, 6, 1)
+#     )
 
 
 def get_full_weekly_timetable(nts, monday, get_class=False, get_name=False):
@@ -190,9 +191,13 @@ def run_person(mysql, person):
                         timetable = {
                             date: value for date, value in (
                                 json_loads(mysql.fetch("SELECT `timetable` FROM `users` WHERE `id` = %s", format(person["id"]))[0]["timetable"]).items()
-                            ) if datetime.datetime.strptime(date, "%Y-%m-%d").date() < get_monday().date()
+                            ) if datetime.datetime.strptime(date, "%Y-%m-%d").date() < get_monday()
                         }
-                        cur_period = school_year_weeks_from_now()
+                        cur_period = [
+                            get_monday() - datetime.timedelta(weeks=1),
+                            get_monday(),
+                            get_monday() + datetime.timedelta(weeks=1)
+                        ]
 
                     except Exception:
                         print(format_exc())
@@ -229,9 +234,13 @@ def run_person(mysql, person):
                         diary = {
                             date: value for date, value in (
                                 json_loads(mysql.fetch("SELECT `diary` FROM `users` WHERE `id` = %s", format(person["id"]))[0]["diary"]).items()
-                            ) if datetime.datetime.strptime(date, "%Y-%m-%d").date() < get_monday().date()
+                            ) if datetime.datetime.strptime(date, "%Y-%m-%d").date() < get_monday()
                         }
-                        cur_period = school_year_weeks_from_now()
+                        cur_period = [
+                            get_monday() - datetime.timedelta(weeks=1),
+                            get_monday(),
+                            get_monday() + datetime.timedelta(weeks=1)
+                        ]
 
                     except Exception:
                         print(format_exc())
