@@ -8,4 +8,4 @@ __pycache__
 /doctmp/*
 !.gitkeep
 
-/.run_person.lock
+/.run_lock.json

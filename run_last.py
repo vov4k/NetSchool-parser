@@ -1,7 +1,7 @@
 from MySQL import MySQL
 
 from traceback import format_exc
-from json import dumps as json_dumps, loads as json_loads
+from json import dumps as json_dumps, loads as json_loads, dump as json_dump, load as json_load
 # from time import sleep
 # from os import remove as os_remove
 from os.path import exists as os_exists
@@ -313,21 +313,21 @@ def run_person(mysql, person):
 def run_last():
 
     def get_cur_running():
-        with open(".run_person.lock", 'r', encoding="utf-8") as file:
-            cur_running = {
-                int(line.split()[0]): float(line.split()[1])
-                for line in file if line.strip() and datetime.datetime.now() - datetime.datetime.fromtimestamp(float(line.split()[1])) < PROCESS_KILL_TIMOUT
-            }
+        try:
+            with open(".run_lock.json", 'r', encoding="utf-8") as file:
+                cur_running = json_load(file)
+        except Exception:
+            cur_running = {}
 
-        return cur_running
+        return {int(key): value for key, value in cur_running.items()}
 
     def set_cur_running(cur_running):
-        with open(".run_person.lock", 'w', encoding="utf-8") as file:
-            file.write('\n'.join("{} {}".format(key, value) for key, value in cur_running.items()))
+        with open(".run_lock.json", 'w', encoding="utf-8") as file:
+            json_dump(cur_running, file, ensure_ascii=False)
 
-    if not os_exists(".run_person.lock"):
-        with open(".run_person.lock", 'w'):
-            pass
+    if not os_exists(".run_lock.json"):
+        with open(".run_lock.json", 'w') as file:
+            file.write(json_dumps({}))
 
     mysql = None
     try:
@@ -347,14 +347,14 @@ def run_last():
                         UNIX_TIMESTAMP(`last_update`) + (
 
                             POW((UNIX_TIMESTAMP() - UNIX_TIMESTAMP(`last_visit`)) / 86400, 2) / 2 + 1
-                        
+
                         ) / 12 * 3600 < UNIX_TIMESTAMP(NOW())
                     )
 
                     {} ORDER BY
 
                     UNIX_TIMESTAMP(`last_update`) + (
-                    
+
                         POW((UNIX_TIMESTAMP() - UNIX_TIMESTAMP(`last_visit`)) / 86400, 2) / 2 + 1
 
                     ) / 12 * 3600
@@ -371,7 +371,6 @@ def run_last():
             if person:
                 user_id = person[0]['id']
                 cur_running[user_id] = datetime.datetime.now().timestamp()
-
                 set_cur_running(cur_running)
 
                 try:
