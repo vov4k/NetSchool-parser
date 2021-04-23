@@ -135,7 +135,7 @@ def run_person(mysql, person):
 
     fast_update = person["last_update"] is None
     ordinary_update = person["last_update"] is None or datetime.datetime.now() - person["last_update"] > get_update_timeout(person)[0]
-    full_update = person["last_update"] is None or datetime.datetime.now() - person["last_full_update"] > get_update_timeout(person)[1]
+    full_update = person["last_full_update"] is None or datetime.datetime.now() - person["last_full_update"] > get_update_timeout(person)[1]
 
     if not (fast_update or ordinary_update or full_update):
         return
