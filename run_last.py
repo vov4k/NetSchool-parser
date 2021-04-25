@@ -83,14 +83,13 @@ def school_year_weeks(year=None):
 #     )
 
 
-def get_full_weekly_timetable(nts, monday, get_class=False, get_name=False):
+def get_full_weekly_timetable(nts, monday):
     # monday = get_monday(monday)  # If monday is actually not monday
 
     result = {}
-    class_, name_ = None, None
 
     try:
-        class_, name_, weekly_timetable = nts.get_weekly_timetable_ext(date=monday, get_class=get_class, get_name=get_name)
+        weekly_timetable = nts.get_weekly_timetable_ext(date=monday)
 
         for day in weekly_timetable:
 
@@ -128,7 +127,7 @@ def get_full_weekly_timetable(nts, monday, get_class=False, get_name=False):
         for day in day_period(monday, monday + datetime.timedelta(days=7)):
             result[day.strftime("%Y-%m-%d")] = None
 
-    return class_, name_, result
+    return result
 
 
 def run_person(mysql, person):
@@ -145,10 +144,7 @@ def run_person(mysql, person):
         person["username"]
     ))
 
-    nts = NetSchoolUser(person["username"], person["password"], DOCPATH)
-
-    name = None
-    class_ = None
+    nts = NetSchoolUser(person["username"], person["password"], DOCPATH, "config.json")
 
     try:
         login_status = nts.login()
@@ -160,7 +156,7 @@ def run_person(mysql, person):
             try:
                 if not fast_update:
                     print("Getting announcements...")
-                    name, announcements = nts.get_announcements(get_name=True)
+                    announcements = nts.get_announcements()
 
                     mysql.query("LOCK TABLES announcements WRITE;TRUNCATE TABLE `announcements`")
 
@@ -207,10 +203,7 @@ def run_person(mysql, person):
                 for week_start in cur_period:
                     print("Getting timetable for week starting with {}...".format(week_start))
 
-                    new_class, new_name, weekly_timetable = get_full_weekly_timetable(nts, week_start, get_class=(class_ is None), get_name=(name is None))
-
-                    name = new_name if name is None else name
-                    class_ = new_class if class_ is None else class_
+                    weekly_timetable = get_full_weekly_timetable(nts, week_start)
 
                     timetable.update(**weekly_timetable)
 
@@ -250,10 +243,7 @@ def run_person(mysql, person):
                 for week_start in cur_period:
                     print("Getting diary for week starting with {}...".format(week_start))
 
-                    new_class, new_name, weekly_diary = nts.get_diary(week_start, get_class=(class_ is None), get_name=(name is None), full=True)
-
-                    name = new_name if name is None else name
-                    class_ = new_class if class_ is None else class_
+                    weekly_diary = nts.get_diary(week_start, full=True)
 
                     diary.update(**{key.strftime("%Y-%m-%d"): weekly_diary[key] for key in weekly_diary})
 
@@ -266,25 +256,25 @@ def run_person(mysql, person):
 
             print("Uploading...")
 
-            if name is not None:
-                if len(name.split()) == 2:
-                    name = ' '.join(name.split()[::-1])
-
+            if nts.name is not None:
                 mysql.query("UPDATE `users` SET `name` = %s WHERE `id` = %s", (
-                    name, person["id"]
-                ))
-
-            if class_ is not None:
-                mysql.query("UPDATE `users` SET `class` = %s WHERE `id` = %s", (
-                    class_,
+                    ' '.join(nts.name.split()[::-1]) if len(nts.name.split()) == 2 else nts.name,
                     person["id"]
                 ))
 
-            mysql.query("UPDATE `users` SET `last_update` = %s WHERE `id` = %s", (
+            if nts.class_ is not None:
+                mysql.query("UPDATE `users` SET `class` = %s WHERE `id` = %s", (
+                    nts.class_,
+                    person["id"]
+                ))
+
+            mysql.query("UPDATE `users` SET `last_update` = %s, `mail` = %s WHERE `id` = %s", (
 
                 (datetime.datetime.now() - datetime.timedelta(hours=8760)).strftime("%Y-%m-%d %H:%M:%S")
                 if person["last_update"] is None else
                 datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+
+                nts.mail,
 
                 person["id"]
             ))
