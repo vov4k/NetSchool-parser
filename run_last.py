@@ -309,7 +309,11 @@ def run_last():
         except Exception:
             cur_running = {}
 
-        return {int(key): value for key, value in cur_running.items()}
+        return {
+            int(key): float(value)
+            for key, value in cur_running.items()
+            if datetime.datetime.now() - datetime.datetime.fromtimestamp(float(value)) <= PROCESS_KILL_TIMOUT
+        }
 
     def set_cur_running(cur_running):
         with open(".run_lock.json", 'w', encoding="utf-8") as file:
