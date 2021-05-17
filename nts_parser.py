@@ -452,8 +452,8 @@ class NetSchoolUser:
                     result[date + timedelta(days=td - 3)].append({
                         "type": "lesson",
                         "name": None,
-                        "start": None,
-                        "end": None
+                        "start": date + timedelta(days=td - 3),
+                        "end": date + timedelta(days=td - 3),
                     })
             last_lesson_num = int(tds[1].text)
 
