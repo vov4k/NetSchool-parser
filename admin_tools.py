@@ -103,6 +103,5 @@ def delete_msg_by_id(msg_id, recipients='all'):
         set_msgs_for_person(recipient, msgs)
 
 
-users = mysql.fetch(
-    "SELECT `id`, `name`, `last_visit`, `class`, `username` FROM `users`")
+users = mysql.fetch("SELECT `id`, `name`, `last_visit`, `class`, `username` FROM `users`")
 users_ids = [user['id'] for user in users]

@@ -446,20 +446,16 @@ class NetSchoolUser:
         for tr in range(1, len(trs) - 1):
             tds = trs[tr].find_all('td')
 
-            try:
-                for _ in range(int(tds[1]) - last_lesson_num):
-                    for td in range(3, len(tds)):
-                        result[date + timedelta(days=td - 3)].append({
-                            "type": "lesson",
-                            "name": None,
-                            "start": None,
-                            "end": None
-                        })
-
-                last_lesson_num = int(tds[1])
-            except Exception:
-                last_lesson_num += 1
-                pass
+            # Finding missing lessons (large breaks)
+            for _ in range(int(tds[1].text) - last_lesson_num - 1):
+                for td in range(3, len(tds)):
+                    result[date + timedelta(days=td - 3)].append({
+                        "type": "lesson",
+                        "name": None,
+                        "start": None,
+                        "end": None
+                    })
+            last_lesson_num = int(tds[1].text)
 
             datetime_start, datetime_end = map(
                 lambda x: datetime.datetime.strptime(x.strip(), '%H:%M').time(),
