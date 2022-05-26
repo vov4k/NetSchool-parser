@@ -6,7 +6,7 @@ from pymysql.constants import CLIENT
 class MySQL:
     def __init__(self, config_path):
         with open(config_path, 'r', encoding="utf-8") as config_file:
-            config = json_load(config_file, encoding="utf-8")
+            config = json_load(config_file)
 
         self.host = config["db_hostname"]
         self.user = config["db_username"]
